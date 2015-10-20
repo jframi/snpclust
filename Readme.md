@@ -47,8 +47,8 @@ sonde<-man.reclust(sonde,what="Both_Alleles",update.all = T)
 sonde<-man.reclust(sonde,what="Negative",update.all = T)
 sonde<-man.reclust(sonde,what="Unknown",update.all = F)
 ```
-Si `update.all=T` tous les individus du cluster considéré du sont d'abord passés en Unknown  
-Si `update.all=F` les individus désignés par la polygone sont ajoutés au cluster  
+Si `update.all=T` tous les individus du cluster considéré du sont d'abord passés en Unknown puis ceux désignés par le polygone sont codés avec l'allele concerné.  
+Si `update.all=F` les individus désignés par le polygone sont codés avec l'allele concerné sans que les autres soient modifiés. 
 
 # A Faire
 
