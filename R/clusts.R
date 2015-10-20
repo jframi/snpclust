@@ -1,7 +1,5 @@
-clust.cmeans<-function(snp, plate=NULL, plate.col="Experiment_Name", X.col= "X.Fluor", Y.col="Y.Fluor", Rmin=1 , centers=3, seuil=0.8,  cols=c("red","green","blue","black","gray")){
-  if(!is.null(plate)){
-    snp<-snp[snp[,match(plate.col,colnames(snp))]==plate,]
-  }
+clust.cmeans<-function(snp,  X.col= "X.Fluor", Y.col="Y.Fluor", call.col="Call", Rmin=1 , centers=3, seuil=0.8,  cols=c("red","green","blue","black","gray")){
+
   X.numcol<-match(X.col,colnames(snp))
   Y.numcol<-match(Y.col,colnames(snp))
 
@@ -52,10 +50,8 @@ man.reclust<-function(snp, X.col= "X.Fluor", Y.col="Y.Fluor", call.col="Call", w
   return(snp)
 }
 
-clust.lga<-function(snp, plate=NULL, plate.col="Experiment_Name", ignore=NULL, X.col= "X.Fluor", Y.col="Y.Fluor",call.col="Call", Rmin=1 ,  k=3,seuil=0.8,  cols=c("red","green","blue","black","gray"), ...){
-  if(!is.null(plate)){
-    snp<-snp[snp[,match(plate.col,colnames(snp))]==plate,]
-  }
+clust.lga<-function(snp, ignore=NULL, X.col= "X.Fluor", Y.col="Y.Fluor",call.col="Call", Rmin=1 ,  k=3,seuil=0.8,  cols=c("red","green","blue","black","gray"), ...){
+
   X.numcol<-match(X.col,colnames(snp))
   Y.numcol<-match(Y.col,colnames(snp))
 
