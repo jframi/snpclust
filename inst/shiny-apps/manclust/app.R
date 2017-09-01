@@ -4,6 +4,7 @@ library(shinythemes)
 #library(snpclust)
 library(data.table)
 
+options(warn =-1)
 valid_file<-function(df,lc){
   if (lc){
     if (all(c("Position","Sample.Name","Genotype","Dye")%in%colnames(df))){
