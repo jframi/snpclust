@@ -222,7 +222,6 @@ server <- function(input, output, session) {
       toplot<-values$newdf
       maxfluo<-max(c(toplot$X.Fluor,toplot$Y.Fluor))
       output$plot <- renderPlotly({
-      browser()
         if (input$whichcall=="new"){
           cols <- c("Allele_X" = "#3CB371FF", "Allele_Y" = "#DC143CFF", "Both_Alleles" = "#337AB7FF", "Unknown" = "#FF7F50FF", "Negative"="#808080FF")
           p <- ggplot(toplot[toplot$Plate==input$Plate,],aes(x=X.Fluor, y=Y.Fluor, colour=NewCall, key = Id)) +  geom_point() #+facet_wrap(~Experiment_Name,ncol = 2)
