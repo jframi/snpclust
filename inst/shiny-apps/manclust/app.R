@@ -220,14 +220,15 @@ server <- function(input, output, session) {
 
     }else{
       toplot<-values$newdf
+      maxfluo<-max(c(toplot$X.Fluor,toplot$Y.Fluor))
       output$plot <- renderPlotly({
-
+      browser()
         if (input$whichcall=="new"){
           cols <- c("Allele_X" = "#3CB371FF", "Allele_Y" = "#DC143CFF", "Both_Alleles" = "#337AB7FF", "Unknown" = "#FF7F50FF", "Negative"="#808080FF")
           p <- ggplot(toplot[toplot$Plate==input$Plate,],aes(x=X.Fluor, y=Y.Fluor, colour=NewCall, key = Id)) +  geom_point() #+facet_wrap(~Experiment_Name,ncol = 2)
-          p <- p + coord_fixed(ratio = 1)+ scale_colour_manual(values = cols)
+          p <- p + coord_fixed(ratio = 1, xlim = c(0,maxfluo), ylim = c(0,maxfluo))+ scale_colour_manual(values = cols)
         }else{
-          p <- ggplot(toplot[toplot$Plate==input$Plate,],aes(x=X.Fluor, y=Y.Fluor, colour=Call, key = Id)) +  geom_point() + coord_fixed(ratio = 1) #+facet_wrap(~Experiment_Name,ncol = 2)
+          p <- ggplot(toplot[toplot$Plate==input$Plate,],aes(x=X.Fluor, y=Y.Fluor, colour=Call, key = Id)) +  geom_point() + coord_fixed(ratio = 1,xlim = c(0,maxfluo), ylim = c(0,maxfluo)) #+facet_wrap(~Experiment_Name,ncol = 2)
         }
         ggplotly(p) %>% layout(dragmode = "lasso")
       })
