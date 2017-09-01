@@ -26,7 +26,7 @@ sonde<-read.table("Sonde1.txt",header=T,sep="\t",dec=",")
 ## Clustering avec cmeans
 
 ```{r}
-clust.cmeans(sonde,Rmin = 1.5,seuil = .6)
+  clust.cmeans(sonde,Rmin = 1.5,seuil = .6)
 ```
 
 ## Clustering avec lga

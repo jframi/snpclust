@@ -1,11 +1,11 @@
 Package: snpclust
 Type: Package
-Title: What the Package Does (Title Case)
-Version: 0.1
-Date: 2015-10-15
-Author: Who wrote it
-Maintainer: Who to complain to <yourfault@somewhere.net>
-Description: More about what it does (maybe more than one line)
-Depends: sp, e1071, lga
-License: What license is it under?
+Title: Utilities for calling SNPs from fluorescence data
+Version: 0.2
+Date: 2017-09-01
+Author: J-F Rami
+Maintainer: J-F Rami <rami@cirad>
+Description: Utilities for calling SNPs from fluorescence data
+Depends: sp, e1071, lga, shiny, data.table, plotly
+License: GPL-3
 LazyData: TRUE
