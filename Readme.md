@@ -32,7 +32,7 @@ runmanclust()
 ```
 
 
-### Other functions for manual clustering
+### Other functions that may be useful for manual clustering
 
 ```{r}
 sonde<-read.table("Sonde1.txt",header=T,sep="\t",dec=",")
@@ -41,7 +41,7 @@ sonde<-read.table("Sonde1.txt",header=T,sep="\t",dec=",")
 #### Clustering with cmeans
 
 ```{r}
-  clust.cmeans(sonde,Rmin = 1.5,seuil = .6)
+clust.cmeans(sonde,Rmin = 1.5,seuil = .6)
 ```
 
 #### Clustering with lga
