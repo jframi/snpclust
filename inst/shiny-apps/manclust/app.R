@@ -115,8 +115,11 @@ server <- function(input, output, session) {
         showModal(modalDialog("File doesn't look like a LightCycler file"))
       } else{
         if (input$lc){
+          df<-df[df$EPF!="-",]
+          df$EPF<-as.numeric(df$EPF)
           DF<-data.table(df)
           dyes<-unique(DF$Dye)
+          #browser()
           DF<-DF[,.(Dyes=paste(Dye,collapse = "/"),X.Fluor=EPF[1],Y.Fluor=EPF[2],Call=Genotype[1],Sample.Name=Sample.Name[1],Notes=Notes[1],Sample.Prep.Notes=Sample.Prep.Notes[1]),Position]
           DF[Call==paste0("Homozygote: ",dyes[1]),Call:="Allele_X"]
           DF[Call==paste0("Homozygote: ",dyes[2]),Call:="Allele_Y"]
