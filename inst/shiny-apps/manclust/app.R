@@ -148,8 +148,8 @@ server <- function(input, output, session) {
       colnames(temp)[match(c(input$Xcol,input$Ycol,input$Ccol,input$Pcol),colnames(temp))]<-c("X.Fluor","Y.Fluor","Call","Plate")
     }
     temp<-data.frame(temp,NewCall="Unknown", Id = c(1:nrow(temp)), stringsAsFactors = F)
-    temp$X.Fluor<-temp$X.Fluor-min(temp$X.Fluor)
-    temp$Y.Fluor<-temp$Y.Fluor-min(temp$Y.Fluor)
+    #temp$X.Fluor<-temp$X.Fluor-min(temp$X.Fluor)
+    #temp$Y.Fluor<-temp$Y.Fluor-min(temp$Y.Fluor)
     values$newdf<-temp
     updateSelectInput(session, "Plate",choices = unique(temp$Plate))
     updateNavbarPage(session, "tabsetId", selected = "clust")
@@ -214,12 +214,14 @@ server <- function(input, output, session) {
         }else{
           p <- ggplot(toplot[toplot$Plate==input$Plate,],aes(x=Theta, y=R, colour=Call, key= Id)) +  geom_point() #+facet_wrap(~Experiment_Name,ncol = 2)
         }
-
         ggplotly(p) %>% layout(dragmode = "lasso")
       })
 
     }else{
       toplot<-values$newdf
+      toplot$X.Fluor<-toplot$X.Fluor-min(toplot$X.Fluor)
+      toplot$Y.Fluor<-toplot$Y.Fluor-min(toplot$Y.Fluor)
+
       maxfluo<-max(c(toplot$X.Fluor,toplot$Y.Fluor))
       output$plot <- renderPlotly({
         if (input$whichcall=="new"){
