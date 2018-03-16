@@ -59,10 +59,10 @@ ui <- fluidPage(theme = shinytheme("sandstone"),title = "snpclust",
              ),
              tabPanel("Match Columns",value = "match",
                       #selectInput("kcol", label = "Identification Column", choices = NA),
-                      selectInput("Xcol", label = "X Fluo Column", choices = NA),
-                      selectInput("Ycol", label = "Y Fluo Column", choices = NA),
-                      selectInput("Ccol", label = "Call Column", choices = NA),
-                      selectInput("Pcol", label = "Plate Column", choices = NA),
+                      selectizeInput("Xcol", label = "X Fluo Column", choices = NA),
+                      selectizeInput("Ycol", label = "Y Fluo Column", choices = NA),
+                      selectizeInput("Ccol", label = "Call Column", choices = NA),
+                      selectizeInput("Pcol", label = "Plate Column", choices = NA),
                       actionButton(inputId = "ok_matchcol", label = "OK")
              ),
              tabPanel("Clustering",value="clust",
@@ -134,10 +134,10 @@ server <- function(input, output, session) {
     }
   })
   observe({
-    updateSelectInput(session, "Xcol",choices = colnames(values$df_data), selected = "X.Fluor")
-    updateSelectInput(session, "Ycol",choices = colnames(values$df_data), selected = "Y.Fluor")
-    updateSelectInput(session, "Ccol",choices = colnames(values$df_data), selected = "Call")
-    updateSelectInput(session, "Pcol",choices = colnames(values$df_data), selected = "Experiment_Name")
+    updateSelectizeInput(session, "Xcol",choices = colnames(values$df_data), selected = "X.Fluor")
+    updateSelectizeInput(session, "Ycol",choices = colnames(values$df_data), selected = "Y.Fluor")
+    updateSelectizeInput(session, "Ccol",choices = c("",colnames(values$df_data)), selected = "Call")
+    updateSelectizeInput(session, "Pcol",choices = c("",colnames(values$df_data)), selected = "Experiment_Name")
     #updateSelectInput(session, "kcol",choices = colnames(values$df_data), selected = "order")
   })
 
@@ -146,10 +146,15 @@ server <- function(input, output, session) {
     #browser()
     if (input$Ccol==""){
       temp<-data.frame(temp,Call="Unknown", stringsAsFactors = F)
-      colnames(temp)[match(c(input$Xcol,input$Ycol,input$Pcol),colnames(temp))]<-c("X.Fluor","Y.Fluor","Plate")
     }else{
-      colnames(temp)[match(c(input$Xcol,input$Ycol,input$Ccol,input$Pcol),colnames(temp))]<-c("X.Fluor","Y.Fluor","Call","Plate")
+      colnames(temp)[match(input$Ccol,colnames(temp))]<-"Call"
     }
+    if (input$Pcol==""){
+      temp<-data.frame(temp,Plate="No Plate", stringsAsFactors = F)
+    }else{
+      colnames(temp)[match(input$Pcol,colnames(temp))]<-"Plate"
+    }
+    colnames(temp)[match(c(input$Xcol,input$Ycol),colnames(temp))]<-c("X.Fluor","Y.Fluor")
     temp<-data.frame(temp,NewCall="Unknown", Id = c(1:nrow(temp)), stringsAsFactors = F)
     #temp$X.Fluor<-temp$X.Fluor-min(temp$X.Fluor)
     #temp$Y.Fluor<-temp$Y.Fluor-min(temp$Y.Fluor)
