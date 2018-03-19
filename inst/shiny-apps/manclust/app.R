@@ -63,12 +63,15 @@ ui <- fluidPage(theme = shinytheme("sandstone"),title = "snpclust",
                       selectizeInput("Ycol", label = "Y Fluo Column", choices = NA),
                       selectizeInput("Ccol", label = "Call Column", choices = NA),
                       selectizeInput("Pcol", label = "Plate Column", choices = NA),
+                      selectizeInput("Scol", label = "SNP Column", choices = NA),
+                      selectizeInput("Icol", label = "Sample Column", choices = NA),
                       actionButton(inputId = "ok_matchcol", label = "OK")
              ),
              tabPanel("Clustering",value="clust",
                       sidebarLayout(
                         sidebarPanel(
                           selectInput("Plate", label = "Plate", choices = NA),
+                          selectInput("SNP", label = "SNP", choices = NA),
                           #selectInput("whichcall", label = "Show Call", choices = c("current","new"),selected = "new"),
                           radioButtons('whichcall', 'Show Call',
                                        c(Current='current',
@@ -141,6 +144,8 @@ server <- function(input, output, session) {
     updateSelectizeInput(session, "Ycol",choices = colnames(values$df_data), selected = "Y.Fluor")
     updateSelectizeInput(session, "Ccol",choices = c("",colnames(values$df_data)), selected = "Call")
     updateSelectizeInput(session, "Pcol",choices = c("",colnames(values$df_data)), selected = "Experiment_Name")
+    updateSelectizeInput(session, "Scol",choices = c("",colnames(values$df_data)), selected = "Sonde")
+    updateSelectizeInput(session, "Icol",choices = c("",colnames(values$df_data)), selected = "Name")
     #updateSelectInput(session, "kcol",choices = colnames(values$df_data), selected = "order")
   })
 
@@ -157,15 +162,31 @@ server <- function(input, output, session) {
     }else{
       colnames(temp)[match(input$Pcol,colnames(temp))]<-"Plate"
     }
+    if (input$Scol==""){
+      temp<-data.frame(temp,SNP="No SNP", stringsAsFactors = F)
+    }else{
+      colnames(temp)[match(input$Scol,colnames(temp))]<-"SNP"
+    }
+    if (input$Icol==""){
+      temp<-data.frame(temp,SampName="", stringsAsFactors = F)
+    }else{
+      colnames(temp)[match(input$Icol,colnames(temp))]<-"SampName"
+    }
     colnames(temp)[match(c(input$Xcol,input$Ycol),colnames(temp))]<-c("X.Fluor","Y.Fluor")
     temp<-data.frame(temp,NewCall="Unknown", Id = c(1:nrow(temp)), stringsAsFactors = F)
     #temp$X.Fluor<-temp$X.Fluor-min(temp$X.Fluor)
     #temp$Y.Fluor<-temp$Y.Fluor-min(temp$Y.Fluor)
     values$newdf<-temp
     updateSelectInput(session, "Plate",choices = unique(temp$Plate))
+    updateSelectInput(session, "SNP",choices = unique(temp$SNP))
     updateNavbarPage(session, "tabsetId", selected = "clust")
 
   })
+  observeEvent(input$Plate,{
+    temp<-values$newdf
+    updateSelectInput(session, "SNP",choices = unique(temp[temp$Plate==input$Plate,"SNP"]))
+  })
+
   observeEvent(input$copycall,{
     temp<-values$newdf
     temp$NewCall<-temp$Call
@@ -220,10 +241,10 @@ server <- function(input, output, session) {
       output$plot <- renderPlotly({
         if (input$whichcall=="new"){
           cols <- c("Allele_X" = "#3CB371FF", "Allele_Y" = "#DC143CFF", "Both_Alleles" = "#337AB7FF", "Unknown" = "#FF7F50FF", "Negative"="#808080FF")
-          p <- ggplot(toplot[toplot$Plate==input$Plate,],aes(x=Theta, y=R, colour=NewCall, key= Id)) +  geom_point() #+facet_wrap(~Experiment_Name,ncol = 2)
+          p <- ggplot(toplot[toplot$Plate==input$Plate & toplot$SNP==input$SNP,],aes(x=Theta, y=R, colour=NewCall, key= Id, text=paste("Sample:",SampName))) +  geom_point() #+facet_wrap(~Experiment_Name,ncol = 2)
           p <- p + scale_colour_manual(values = cols)
         }else{
-          p <- ggplot(toplot[toplot$Plate==input$Plate,],aes(x=Theta, y=R, colour=Call, key= Id)) +  geom_point() #+facet_wrap(~Experiment_Name,ncol = 2)
+          p <- ggplot(toplot[toplot$Plate==input$Plate & toplot$SNP==input$SNP,],aes(x=Theta, y=R, colour=Call, key= Id, text=paste("Sample:",SampName))) +  geom_point() #+facet_wrap(~Experiment_Name,ncol = 2)
         }
         ggplotly(p) %>% layout(dragmode = "lasso")
       })
@@ -232,15 +253,16 @@ server <- function(input, output, session) {
       toplot<-values$newdf
       toplot$X.Fluor<-toplot$X.Fluor-min(toplot$X.Fluor)
       toplot$Y.Fluor<-toplot$Y.Fluor-min(toplot$Y.Fluor)
+      toplot<-toplot[toplot$Plate==input$Plate & toplot$SNP==input$SNP,]
 
       maxfluo<-max(c(toplot$X.Fluor,toplot$Y.Fluor))
       output$plot <- renderPlotly({
         if (input$whichcall=="new"){
           cols <- c("Allele_X" = "#3CB371FF", "Allele_Y" = "#DC143CFF", "Both_Alleles" = "#337AB7FF", "Unknown" = "#FF7F50FF", "Negative"="#808080FF")
-          p <- ggplot(toplot[toplot$Plate==input$Plate,],aes(x=X.Fluor, y=Y.Fluor, colour=NewCall, key = Id)) +  geom_point() #+facet_wrap(~Experiment_Name,ncol = 2)
+          p <- ggplot(toplot,aes(x=X.Fluor, y=Y.Fluor, colour=NewCall, key = Id, text=paste("Sample:",SampName))) +  geom_point() #+facet_wrap(~Experiment_Name,ncol = 2)
           p <- p + coord_fixed(ratio = 1, xlim = c(0,maxfluo), ylim = c(0,maxfluo))+ scale_colour_manual(values = cols)
         }else{
-          p <- ggplot(toplot[toplot$Plate==input$Plate,],aes(x=X.Fluor, y=Y.Fluor, colour=Call, key = Id)) +  geom_point() + coord_fixed(ratio = 1,xlim = c(0,maxfluo), ylim = c(0,maxfluo)) #+facet_wrap(~Experiment_Name,ncol = 2)
+          p <- ggplot(toplot,aes(x=X.Fluor, y=Y.Fluor, colour=Call, key = Id, text=paste("Sample:",SampName))) +  geom_point() + coord_fixed(ratio = 1,xlim = c(0,maxfluo), ylim = c(0,maxfluo)) #+facet_wrap(~Experiment_Name,ncol = 2)
         }
         ggplotly(p) %>% layout(dragmode = "lasso")
       })
