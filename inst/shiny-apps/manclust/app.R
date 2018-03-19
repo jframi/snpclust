@@ -109,15 +109,18 @@ server <- function(input, output, session) {
   observe( {
     inFile <- input$file1
     if (!is.null(inFile)){
-      df<-read.table(inFile$datapath, header = input$header,
+      #df<-read.table(inFile$datapath, header = input$header,
+      #               sep = input$sep, quote = input$quote, skip = input$skip, dec = input$dec, stringsAsFactors = F)
+      df<-fread(inFile$datapath, header = input$header,
                      sep = input$sep, quote = input$quote, skip = input$skip, dec = input$dec, stringsAsFactors = F)
+
       if(!valid_file(df,input$lc)){
         showModal(modalDialog("File doesn't look like a LightCycler file"))
       } else{
         if (input$lc){
-          df<-df[df$EPF!="-",]
+          df<-df[EPF!="-"]
           df$EPF<-as.numeric(df$EPF)
-          DF<-data.table(df)
+          DF<-df
           dyes<-unique(DF$Dye)
           #browser()
           DF<-DF[,.(Dyes=paste(Dye,collapse = "/"),X.Fluor=EPF[1],Y.Fluor=EPF[2],Call=Genotype[1],Sample.Name=Sample.Name[1],Notes=Notes[1],Sample.Prep.Notes=Sample.Prep.Notes[1]),Position]
@@ -128,7 +131,7 @@ server <- function(input, output, session) {
           DF[,Experiment_Name:=input$file1$name]
           values$df_data <- data.frame(DF)
         }else{
-          values$df_data <-df #data.table(df)
+          values$df_data <- data.frame(df) #data.table(df)
         }
       }
     }
