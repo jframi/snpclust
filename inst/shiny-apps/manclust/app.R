@@ -158,12 +158,12 @@ server <- function(input, output, session) {
       colnames(temp)[match(input$Ccol,colnames(temp))]<-"Call"
     }
     if (input$Pcol==""){
-      temp<-data.frame(temp,Plate="No Plate", stringsAsFactors = F)
+      temp<-data.frame(temp,Plate="Any Plate", stringsAsFactors = F)
     }else{
       colnames(temp)[match(input$Pcol,colnames(temp))]<-"Plate"
     }
     if (input$Scol==""){
-      temp<-data.frame(temp,SNP="No SNP", stringsAsFactors = F)
+      temp<-data.frame(temp,SNP="Any SNP", stringsAsFactors = F)
     }else{
       colnames(temp)[match(input$Scol,colnames(temp))]<-"SNP"
     }
@@ -235,7 +235,8 @@ server <- function(input, output, session) {
 
   observe({
     if (!is.null(values$newdf)){
-    if (input$tetar == TRUE){
+      ptitle<-paste(input$SNP,"-",input$Plate)
+      if (input$tetar == TRUE){
       toplot<-values$newdf
       toplot<-cbind(toplot,xy2ThetaR(toplot[,c("X.Fluor","Y.Fluor")]))
       output$plot <- renderPlotly({
@@ -246,7 +247,7 @@ server <- function(input, output, session) {
         }else{
           p <- ggplot(toplot[toplot$Plate==input$Plate & toplot$SNP==input$SNP,],aes(x=Theta, y=R, colour=Call, key= Id, text=paste("Sample:",SampName))) +  geom_point() #+facet_wrap(~Experiment_Name,ncol = 2)
         }
-        ggplotly(p) %>% layout(dragmode = "lasso")
+        ggplotly(p+ggtitle(ptitle)) %>% layout(dragmode = "lasso")
       })
 
     }else{
@@ -264,7 +265,7 @@ server <- function(input, output, session) {
         }else{
           p <- ggplot(toplot,aes(x=X.Fluor, y=Y.Fluor, colour=Call, key = Id, text=paste("Sample:",SampName))) +  geom_point() + coord_fixed(ratio = 1,xlim = c(0,maxfluo), ylim = c(0,maxfluo)) #+facet_wrap(~Experiment_Name,ncol = 2)
         }
-        ggplotly(p) %>% layout(dragmode = "lasso")
+        ggplotly(p+ggtitle(ptitle)) %>% layout(dragmode = "lasso")
       })
     }
     }
