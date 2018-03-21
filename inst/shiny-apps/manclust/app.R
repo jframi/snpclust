@@ -70,8 +70,8 @@ ui <- fluidPage(theme = shinytheme("sandstone"),title = "snpclust",
              tabPanel("Clustering",value="clust",
                       sidebarLayout(
                         sidebarPanel(
-                          selectInput("Plate", label = "Plate", choices = NA),
                           selectInput("SNP", label = "SNP", choices = NA),
+                          selectInput("Plate", label = "Plate", choices = NA),
                           #selectInput("whichcall", label = "Show Call", choices = c("current","new"),selected = "new"),
                           radioButtons('whichcall', 'Show Call',
                                        c(Current='current',
@@ -177,14 +177,18 @@ server <- function(input, output, session) {
     #temp$X.Fluor<-temp$X.Fluor-min(temp$X.Fluor)
     #temp$Y.Fluor<-temp$Y.Fluor-min(temp$Y.Fluor)
     values$newdf<-temp
-    updateSelectInput(session, "Plate",choices = unique(temp$Plate))
-    updateSelectInput(session, "SNP",choices = unique(temp$SNP))
+    updateSelectInput(session, "Plate",choices = sort(unique(temp$Plate)))
+    updateSelectInput(session, "SNP",choices = sort(unique(temp$SNP)))
     updateNavbarPage(session, "tabsetId", selected = "clust")
 
   })
-  observeEvent(input$Plate,{
+  #observeEvent(input$Plate,{
+  #  temp<-values$newdf
+  #  updateSelectInput(session, "SNP",choices = unique(temp[temp$Plate==input$Plate,"SNP"]))
+  #})
+  observeEvent(input$SNP,{
     temp<-values$newdf
-    updateSelectInput(session, "SNP",choices = unique(temp[temp$Plate==input$Plate,"SNP"]))
+    updateSelectInput(session, "Plate",choices = sort(unique(temp[temp$SNP==input$SNP,"Plate"])))
   })
 
   observeEvent(input$copycall,{
