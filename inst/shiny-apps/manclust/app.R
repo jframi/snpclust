@@ -193,13 +193,13 @@ server <- function(input, output, session) {
 
   observeEvent(input$copycall,{
     temp<-values$newdf
-    temp$NewCall<-temp$Call
+    temp[temp$Plate==input$Plate & temp$SNP==input$SNP,"NewCall"]<-gsub(" ", "_", temp[temp$Plate==input$Plate & temp$SNP==input$SNP,"Call"])
     values$newdf<-temp
 
   })
   observeEvent(input$resetnewcall,{
     temp<-values$newdf
-    temp$NewCall<-"Unknown"
+    temp[temp$Plate==input$Plate & temp$SNP==input$SNP,"NewCall"]<-"Unknown"
     values$newdf<-temp
 
   })

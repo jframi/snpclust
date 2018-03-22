@@ -1,7 +1,7 @@
 Package: snpclust
 Type: Package
 Title: Utilities for calling SNPs from fluorescence data
-Version: 0.2.3
+Version: 0.2.4
 Date: 2017-09-01
 Author: J-F Rami
 Maintainer: J-F Rami <rami@cirad>
