@@ -239,7 +239,7 @@ server <- function(input, output, session) {
 
   observe({
     if (!is.null(values$newdf)){
-      ptitle<-paste(input$SNP,"-",input$Plate)
+      ptitle<-paste(ifelse(input$SNP=="Any SNP","",input$SNP),ifelse(input$Plate=="Any Plate","",paste("-",input$Plate)))
       if (input$tetar == TRUE){
       toplot<-values$newdf
       toplot<-cbind(toplot,xy2ThetaR(toplot[,c("X.Fluor","Y.Fluor")]))
