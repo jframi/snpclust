@@ -173,7 +173,10 @@ server <- function(input, output, session) {
       colnames(temp)[match(input$Icol,colnames(temp))]<-"SampName"
     }
     colnames(temp)[match(c(input$Xcol,input$Ycol),colnames(temp))]<-c("X.Fluor","Y.Fluor")
-    temp<-data.frame(temp,NewCall="Unknown", Id = c(1:nrow(temp)), stringsAsFactors = F)
+    if (!any(colnames(temp)=="NewCall")){
+      temp<-data.frame(temp,NewCall="Unknown",  stringsAsFactors = F)
+    }
+    temp<-data.frame(temp, Id = c(1:nrow(temp)), stringsAsFactors = F)
     #temp$X.Fluor<-temp$X.Fluor-min(temp$X.Fluor)
     #temp$Y.Fluor<-temp$Y.Fluor-min(temp$Y.Fluor)
     values$newdf<-temp
