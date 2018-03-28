@@ -176,7 +176,9 @@ server <- function(input, output, session) {
     if (!any(colnames(temp)=="NewCall")){
       temp<-data.frame(temp,NewCall="Unknown",  stringsAsFactors = F)
     }
-    temp<-data.frame(temp, Id = c(1:nrow(temp)), stringsAsFactors = F)
+    if (!any(colnames(temp)=="snpclustId")){
+      temp<-data.frame(temp, snpclustId = c(1:nrow(temp)), stringsAsFactors = F)
+    }
     #temp$X.Fluor<-temp$X.Fluor-min(temp$X.Fluor)
     #temp$Y.Fluor<-temp$Y.Fluor-min(temp$Y.Fluor)
     values$newdf<-temp
@@ -210,31 +212,31 @@ server <- function(input, output, session) {
   observeEvent(input$updateX,{
     d <- event_data("plotly_selected")
     temp<-values$newdf
-    temp$NewCall[temp$Id%in%d$key]<- "Allele_X"
+    temp$NewCall[temp$snpclustId%in%d$key]<- "Allele_X"
     values$newdf<-temp
   })
   observeEvent(input$updateY,{
     d <- event_data("plotly_selected")
     temp<-values$newdf
-    temp$NewCall[temp$Id%in%d$key]<- "Allele_Y"
+    temp$NewCall[temp$snpclustId%in%d$key]<- "Allele_Y"
     values$newdf<-temp
   })
   observeEvent(input$updateH,{
     d <- event_data("plotly_selected")
     temp<-values$newdf
-    temp$NewCall[temp$Id%in%d$key]<- "Both_Alleles"
+    temp$NewCall[temp$snpclustId%in%d$key]<- "Both_Alleles"
     values$newdf<-temp
   })
   observeEvent(input$updateU,{
     d <- event_data("plotly_selected")
     temp<-values$newdf
-    temp$NewCall[temp$Id%in%d$key]<- "Unknown"
+    temp$NewCall[temp$snpclustId%in%d$key]<- "Unknown"
     values$newdf<-temp
   })
   observeEvent(input$updateN,{
     d <- event_data("plotly_selected")
     temp<-values$newdf
-    temp$NewCall[temp$Id%in%d$key]<- "Negative"
+    temp$NewCall[temp$snpclustId%in%d$key]<- "Negative"
     values$newdf<-temp
   })
 
@@ -249,10 +251,10 @@ server <- function(input, output, session) {
       output$plot <- renderPlotly({
         if (input$whichcall=="new"){
           cols <- c("Allele_X" = "#3CB371FF", "Allele_Y" = "#DC143CFF", "Both_Alleles" = "#337AB7FF", "Unknown" = "#FF7F50FF", "Negative"="#808080FF")
-          p <- ggplot(toplot[toplot$Plate==input$Plate & toplot$SNP==input$SNP,],aes(x=Theta, y=R, colour=NewCall, key= Id, text=paste("Sample:",SampName))) +  geom_point() #+facet_wrap(~Experiment_Name,ncol = 2)
+          p <- ggplot(toplot[toplot$Plate==input$Plate & toplot$SNP==input$SNP,],aes(x=Theta, y=R, colour=NewCall, key= snpclustId, text=paste("Sample:",SampName))) +  geom_point() #+facet_wrap(~Experiment_Name,ncol = 2)
           p <- p + scale_colour_manual(values = cols)
         }else{
-          p <- ggplot(toplot[toplot$Plate==input$Plate & toplot$SNP==input$SNP,],aes(x=Theta, y=R, colour=Call, key= Id, text=paste("Sample:",SampName))) +  geom_point() #+facet_wrap(~Experiment_Name,ncol = 2)
+          p <- ggplot(toplot[toplot$Plate==input$Plate & toplot$SNP==input$SNP,],aes(x=Theta, y=R, colour=Call, key= snpclustId, text=paste("Sample:",SampName))) +  geom_point() #+facet_wrap(~Experiment_Name,ncol = 2)
         }
         ggplotly(p+ggtitle(ptitle)) %>% layout(dragmode = "lasso")
       })
@@ -267,10 +269,10 @@ server <- function(input, output, session) {
       output$plot <- renderPlotly({
         if (input$whichcall=="new"){
           cols <- c("Allele_X" = "#3CB371FF", "Allele_Y" = "#DC143CFF", "Both_Alleles" = "#337AB7FF", "Unknown" = "#FF7F50FF", "Negative"="#808080FF")
-          p <- ggplot(toplot,aes(x=X.Fluor, y=Y.Fluor, colour=NewCall, key = Id, text=paste("Sample:",SampName))) +  geom_point() #+facet_wrap(~Experiment_Name,ncol = 2)
+          p <- ggplot(toplot,aes(x=X.Fluor, y=Y.Fluor, colour=NewCall, key = snpclustId, text=paste("Sample:",SampName))) +  geom_point() #+facet_wrap(~Experiment_Name,ncol = 2)
           p <- p + coord_fixed(ratio = 1, xlim = c(0,maxfluo), ylim = c(0,maxfluo))+ scale_colour_manual(values = cols)
         }else{
-          p <- ggplot(toplot,aes(x=X.Fluor, y=Y.Fluor, colour=Call, key = Id, text=paste("Sample:",SampName))) +  geom_point() + coord_fixed(ratio = 1,xlim = c(0,maxfluo), ylim = c(0,maxfluo)) #+facet_wrap(~Experiment_Name,ncol = 2)
+          p <- ggplot(toplot,aes(x=X.Fluor, y=Y.Fluor, colour=Call, key = snpclustId, text=paste("Sample:",SampName))) +  geom_point() + coord_fixed(ratio = 1,xlim = c(0,maxfluo), ylim = c(0,maxfluo)) #+facet_wrap(~Experiment_Name,ncol = 2)
         }
         ggplotly(p+ggtitle(ptitle)) %>% layout(dragmode = "lasso")
       })
