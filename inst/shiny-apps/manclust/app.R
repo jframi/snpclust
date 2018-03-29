@@ -21,7 +21,7 @@ ui <- fluidPage(theme = shinytheme("sandstone"),title = "snpclust",
              tabPanel("Load File",value = "load",
                       fluidRow(
                       h3("File format"),
-                      checkboxInput('lc', 'LightCycler Format', FALSE),
+                      checkboxInput('lc', 'LightCycler 96 Format', FALSE),
                       column(width = 2,
                              radioButtons('sep', 'Separator',
                                           c(Comma=',',
