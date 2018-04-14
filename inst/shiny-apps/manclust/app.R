@@ -69,8 +69,8 @@ ui <- fluidPage(theme = shinytheme("sandstone"),title = "snpclust",
              tabPanel("Clustering",value="clust",
                       sidebarLayout(
                         sidebarPanel(
-                          selectInput("SNP", label = "SNP", choices = NA),
-                          selectInput("Plate", label = "Plate", choices = NA),
+                          selectizeInput("SNP", label = "SNP", choices = NA),
+                          selectizeInput("Plate", label = "Plate", choices = NA),
                           #selectInput("whichcall", label = "Show Call", choices = c("current","new"),selected = "new"),
                           radioButtons('whichcall', 'Show Call',
                                        c(Current='current',
@@ -181,19 +181,30 @@ server <- function(input, output, session) {
     #temp$X.Fluor<-temp$X.Fluor-min(temp$X.Fluor)
     #temp$Y.Fluor<-temp$Y.Fluor-min(temp$Y.Fluor)
     values$newdf<-temp
-    updateSelectInput(session, "Plate",choices = sort(unique(temp$Plate)))
-    updateSelectInput(session, "SNP",choices = sort(unique(temp$SNP)))
+    updateSelectizeInput(session, "Plate",choices = sort(unique(temp$Plate)))
+    updateSelectizeInput(session, "SNP",choices = sort(unique(temp$SNP)))
     updateNavbarPage(session, "tabsetId", selected = "clust")
 
   })
-  #observeEvent(input$Plate,{
-  #  temp<-values$newdf
-  #  updateSelectInput(session, "SNP",choices = unique(temp[temp$Plate==input$Plate,"SNP"]))
-  #})
+  observeEvent(input$Plate,{
+    temp<-values$newdf
+    selSNP<-input$SNP
+    if (input$Plate!=""){
+      updateSelectizeInput(session, "SNP",selected=selSNP , choices = unique(temp[temp$Plate==input$Plate,"SNP"]),label = paste("SNP (Plate:",input$Plate,")",sep=""))
+    } else{
+      updateSelectizeInput(session, "SNP",selected=selSNP , choices = unique(temp[,"SNP"]),label = "SNP")
+      #updateSelectizeInput(session, "Plate" , choices = unique(temp[,"Plate"]))
+    }
+  })
   observeEvent(input$SNP,{
     temp<-values$newdf
-    updateSelectInput(session, "Plate",choices = sort(unique(temp[temp$SNP==input$SNP,"Plate"])))
-  })
+    selplate<-input$Plate
+    if (input$SNP!=""){
+      updateSelectizeInput(session, "Plate", selected=selplate, choices = sort(unique(temp[temp$SNP==input$SNP,"Plate"])),label = paste("Plate (SNP:",input$SNP,")",sep=""))
+    } else{
+      updateSelectizeInput(session, "Plate", selected=selplate, choices = sort(unique(temp[,"Plate"])),label = "Plate")
+    }
+    })
 
   observeEvent(input$copycall,{
     temp<-values$newdf
@@ -243,14 +254,21 @@ server <- function(input, output, session) {
 
   observe({
     if (!is.null(values$newdf)){
-      ptitle<-paste(ifelse(input$SNP=="Any SNP","",input$SNP),ifelse(input$Plate=="Any Plate","",paste("-",input$Plate)))
+      ptitle<-paste(ifelse(input$SNP%in%c("","Any SNP"),"",input$SNP),ifelse(input$Plate%in%c("","Any SNP"),"",paste("-",input$Plate)))
       if (input$tetar == TRUE){
       toplot<-values$newdf
+      if (input$Plate!=""){
+        toplot<-toplot[toplot$Plate==input$Plate,]
+      }
+      if (input$SNP!=""){
+        toplot<-toplot[toplot$SNP==input$SNP,]
+      }
+
       toplot<-cbind(toplot,xy2ThetaR(toplot[,c("X.Fluor","Y.Fluor")]))
       output$plot <- renderPlotly({
         if (input$whichcall=="new"){
           cols <- c("Allele_X" = "#3CB371FF", "Allele_Y" = "#DC143CFF", "Both_Alleles" = "#337AB7FF", "Unknown" = "#FF7F50FF", "Negative"="#808080FF")
-          p <- ggplot(toplot[toplot$Plate==input$Plate & toplot$SNP==input$SNP,],aes(x=Theta, y=R, colour=NewCall, key= snpclustId, text=paste("Sample:",SampName))) +  geom_point() #+facet_wrap(~Experiment_Name,ncol = 2)
+          p <- ggplot(toplot,aes(x=Theta, y=R, colour=NewCall, key= snpclustId, text=paste("Sample:",SampName))) +  geom_point() #+facet_wrap(~Experiment_Name,ncol = 2)
           p <- p + scale_colour_manual(values = cols)
         }else{
           p <- ggplot(toplot[toplot$Plate==input$Plate & toplot$SNP==input$SNP,],aes(x=Theta, y=R, colour=Call, key= snpclustId, text=paste("Sample:",SampName))) +  geom_point() #+facet_wrap(~Experiment_Name,ncol = 2)
@@ -262,7 +280,12 @@ server <- function(input, output, session) {
       toplot<-values$newdf
       toplot$X.Fluor<-toplot$X.Fluor-min(toplot$X.Fluor)
       toplot$Y.Fluor<-toplot$Y.Fluor-min(toplot$Y.Fluor)
-      toplot<-toplot[toplot$Plate==input$Plate & toplot$SNP==input$SNP,]
+      if (input$Plate!=""){
+        toplot<-toplot[toplot$Plate==input$Plate,]
+      }
+      if (input$SNP!=""){
+        toplot<-toplot[toplot$SNP==input$SNP,]
+      }
 
       maxfluo<-max(c(toplot$X.Fluor,toplot$Y.Fluor))
       output$plot <- renderPlotly({
