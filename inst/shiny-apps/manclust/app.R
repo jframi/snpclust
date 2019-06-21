@@ -5,6 +5,7 @@ library(shinythemes)
 library(data.table)
 
 options(warn =-1)
+options(shiny.maxRequestSize=300*1024^2)
 valid_file<-function(df,lc){
   if (lc){
     if (all(c("Position","Sample Name","Genotype","Dye")%in%colnames(df))){
