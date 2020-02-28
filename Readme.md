@@ -35,7 +35,7 @@ Choose an input file that contain fluorescence values and calls for one or sever
 Adjust the file format to read correctly the input file.  
 ![screenshot01](figure/ss02.png)  
 Match the columns of your file to the column that the app is expecting  
-<img src="figure/ss03.png" width="100">  
+<img src="figure/ss03.png" width="300">  
 You can select SNPs, DNA plates to display current clustering, select individual genotypes in the plot using the lasso tool, and recall selected points.  
 ![screenshot01](figure/ss04.png)  
 
