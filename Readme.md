@@ -30,7 +30,13 @@ After installing the package, the shiny app can be run using:
 ```{r}
 runmanclust()
 ```
-
-
+Choose an input file that contain fluorescence values and calls for one or several SNPs and one or several DNA plates.
+![screenshot01](figure/ss01.png)
+Adjust the file format to read correctly the input file.
+![screenshot01](figure/ss02.png)
+Match the columns of your file to the column that the app is expecting
+![screenshot01](figure/ss03.png)
+You can select SNPs, DNA plates to display current clustering, select individual genotypes in the plot using the lasso tool, and recall selected points.
+![screenshot01](figure/ss04.png)
 
 

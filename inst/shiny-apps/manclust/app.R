@@ -70,8 +70,8 @@ ui <- fluidPage(theme = shinytheme("sandstone"),title = "snpclust",
              tabPanel("Clustering",value="clust",
                       sidebarLayout(
                         sidebarPanel(
-                          selectizeInput("SNP", label = "SNP", choices = NA),
-                          selectizeInput("Plate", label = "Plate", choices = NA),
+                          selectizeInput("SNP", label = "SNP", choices = ""),
+                          selectizeInput("Plate", label = "Plate", choices = ""),
                           #selectInput("whichcall", label = "Show Call", choices = c("current","new"),selected = "new"),
                           radioButtons('whichcall', 'Show Call',
                                        c(Current='current',
@@ -264,6 +264,8 @@ server <- function(input, output, session) {
       if (input$SNP!=""){
         toplot<-toplot[toplot$SNP==input$SNP,]
       }
+      toplot$X.Fluor<-toplot$X.Fluor-min(toplot$X.Fluor)
+      toplot$Y.Fluor<-toplot$Y.Fluor-min(toplot$Y.Fluor)
 
       toplot<-cbind(toplot,xy2ThetaR(toplot[,c("X.Fluor","Y.Fluor")]))
       output$plot <- renderPlotly({
