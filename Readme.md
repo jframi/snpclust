@@ -36,7 +36,9 @@ Adjust the file format to read correctly the input file.
 ![screenshot01](figure/ss02.png)  
 Match the columns of your file to the column that the app is expecting  
 <img src="figure/ss03.png" width="300">  
-You can select SNPs, DNA plates to display current clustering, select individual genotypes in the plot using the lasso tool, and recall selected points.  
+Then select a SNP and possibly a Plate to display a scatter plot of fluorescence values.  
 ![screenshot01](figure/ss04.png)  
+You can select SNPs, DNA plates to display current clustering, select individual genotypes in the plot using the lasso tool, and recall selected points.  
+![screenshot01](figure/ss05.png)  
 
 
