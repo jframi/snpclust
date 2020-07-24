@@ -71,7 +71,7 @@ ui <- fluidPage(theme = shinytheme("sandstone"),title = "snpclust",
                       sidebarLayout(
                         sidebarPanel(
                           selectizeInput("SNP", label = "SNP", choices = ""),
-                          selectizeInput("Plate", label = "Plate", choices = ""),
+                          selectizeInput("Plate", label = "Plate", choices = "", multiple=TRUE),
                           #selectInput("whichcall", label = "Show Call", choices = c("current","new"),selected = "new"),
                           radioButtons('whichcall', 'Show Call',
                                        c(Current='current',
@@ -190,8 +190,8 @@ server <- function(input, output, session) {
   observeEvent(input$Plate,{
     temp<-values$newdf
     selSNP<-input$SNP
-    if (input$Plate!=""){
-      updateSelectizeInput(session, "SNP",selected=selSNP , choices = unique(temp[temp$Plate==input$Plate,"SNP"]),label = paste("SNP (Plate:",input$Plate,")",sep=""))
+    if (!is.null(input$Plate)){
+      updateSelectizeInput(session, "SNP",selected=selSNP , choices = unique(temp[temp$Plate%in%input$Plate,"SNP"]),label = paste("SNP (Plate:",input$Plate,")",sep=""))
     } else{
       updateSelectizeInput(session, "SNP",selected=selSNP , choices = unique(temp[,"SNP"]),label = "SNP")
       #updateSelectizeInput(session, "Plate" , choices = unique(temp[,"Plate"]))
@@ -209,13 +209,13 @@ server <- function(input, output, session) {
 
   observeEvent(input$copycall,{
     temp<-values$newdf
-    temp[temp$Plate==input$Plate & temp$SNP==input$SNP,"NewCall"]<-gsub(" ", "_", temp[temp$Plate==input$Plate & temp$SNP==input$SNP,"Call"])
+    temp[temp$Plate%in%input$Plate & temp$SNP==input$SNP,"NewCall"]<-gsub(" ", "_", temp[temp$Plate%in%input$Plate & temp$SNP==input$SNP,"Call"])
     values$newdf<-temp
 
   })
   observeEvent(input$resetnewcall,{
     temp<-values$newdf
-    temp[temp$Plate==input$Plate & temp$SNP==input$SNP,"NewCall"]<-"Unknown"
+    temp[temp$Plate%in%input$Plate & temp$SNP==input$SNP,"NewCall"]<-"Unknown"
     values$newdf<-temp
 
   })
@@ -258,8 +258,8 @@ server <- function(input, output, session) {
       ptitle<-paste(ifelse(input$SNP%in%c("","Any SNP"),"",input$SNP),ifelse(input$Plate%in%c("","Any SNP"),"",paste("-",input$Plate)))
       if (input$tetar == TRUE){
       toplot<-values$newdf
-      if (input$Plate!=""){
-        toplot<-toplot[toplot$Plate==input$Plate,]
+      if (!is.null(input$Plate)){
+        toplot<-toplot[toplot$Plate%in%input$Plate,]
       }
       if (input$SNP!=""){
         toplot<-toplot[toplot$SNP==input$SNP,]
@@ -274,7 +274,7 @@ server <- function(input, output, session) {
           p <- ggplot(toplot,aes(x=Theta, y=R, colour=NewCall, key= snpclustId, text=paste("Sample:",SampName))) +  geom_point() #+facet_wrap(~Experiment_Name,ncol = 2)
           p <- p + scale_colour_manual(values = cols)
         }else{
-          p <- ggplot(toplot[toplot$Plate==input$Plate & toplot$SNP==input$SNP,],aes(x=Theta, y=R, colour=Call, key= snpclustId, text=paste("Sample:",SampName))) +  geom_point() #+facet_wrap(~Experiment_Name,ncol = 2)
+          p <- ggplot(toplot[toplot$Plate%in%input$Plate & toplot$SNP==input$SNP,],aes(x=Theta, y=R, colour=Call, key= snpclustId, text=paste("Sample:",SampName))) +  geom_point() #+facet_wrap(~Experiment_Name,ncol = 2)
         }
         ggplotly(p+ggtitle(ptitle)) %>% layout(dragmode = "lasso")
       })
@@ -283,8 +283,8 @@ server <- function(input, output, session) {
       toplot<-values$newdf
       toplot$X.Fluor<-toplot$X.Fluor-min(toplot$X.Fluor)
       toplot$Y.Fluor<-toplot$Y.Fluor-min(toplot$Y.Fluor)
-      if (input$Plate!=""){
-        toplot<-toplot[toplot$Plate==input$Plate,]
+      if (!is.null(input$Plate)){
+        toplot<-toplot[toplot$Plate%in%input$Plate,]
       }
       if (input$SNP!=""){
         toplot<-toplot[toplot$SNP==input$SNP,]
