@@ -42,7 +42,8 @@ ui <- fluidPage(theme = shinytheme("sandstone"),title = "snpclust",
                                    '.')),
                       column(2,
                       checkboxInput('header', 'Header', TRUE),
-                      numericInput(inputId = 'skip',label = 'Number of lines to skip',value = 0)),
+                      numericInput(inputId = 'skip',label = 'Number of lines to skip',value = 0),
+                      checkboxInput('intertek_guess', 'Intertek file - guess number of lines to skip', FALSE)),
                       tags$hr(),
                       fileInput('file1', 'Choose file to upload',
                                 accept = c(
@@ -114,6 +115,10 @@ server <- function(input, output, session) {
     if (!is.null(inFile)){
       #df<-read.table(inFile$datapath, header = input$header,
       #               sep = input$sep, quote = input$quote, skip = input$skip, dec = input$dec, stringsAsFactors = F)
+      if (input$intertek_guess){
+        rawfile<-scan(inFile$datapath, what = "character", sep = "\n",blank.lines.skip= F, quiet = T)
+        updateNumericInput(session, "skip", value =  grep("^Data$",rawfile))
+      }
       df<-fread(inFile$datapath, header = input$header,
                      sep = input$sep, quote = input$quote, skip = input$skip, dec = input$dec, stringsAsFactors = F)
 
