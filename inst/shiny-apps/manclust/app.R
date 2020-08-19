@@ -3,9 +3,14 @@ library(shiny)
 library(shinythemes)
 #library(snpclust)
 library(data.table)
+library(DT)
+library(brapi)
+library(bmsaddins)
 
 options(warn =-1)
 options(shiny.maxRequestSize=300*1024^2)
+
+
 valid_file<-function(df,lc){
   if (lc){
     if (all(c("Position","Sample Name","Genotype","Dye")%in%colnames(df))){
@@ -18,11 +23,13 @@ valid_file<-function(df,lc){
   }
 }
 ui <- fluidPage(theme = shinytheme("sandstone"),title = "snpclust",
+                shinysky::busyIndicator(wait = 1000, text = NULL),
   navbarPage(title = "snpclust", id = "tabsetId",
              tabPanel("Load File",value = "load",
                       fluidRow(
                       h3("File format"),
                       checkboxInput('lc', 'LightCycler 96 Format', FALSE),
+                      checkboxInput('intertek_guess', 'Intertek format (will guess number of lines to skip)', FALSE),
                       column(width = 2,
                              radioButtons('sep', 'Separator',
                                           c(Comma=',',
@@ -42,8 +49,7 @@ ui <- fluidPage(theme = shinytheme("sandstone"),title = "snpclust",
                                    '.')),
                       column(2,
                       checkboxInput('header', 'Header', TRUE),
-                      numericInput(inputId = 'skip',label = 'Number of lines to skip',value = 0),
-                      checkboxInput('intertek_guess', 'Intertek file - guess number of lines to skip', FALSE)),
+                      numericInput(inputId = 'skip',label = 'Number of lines to skip',value = 0)),
                       tags$hr(),
                       fileInput('file1', 'Choose file to upload',
                                 accept = c(
@@ -57,6 +63,34 @@ ui <- fluidPage(theme = shinytheme("sandstone"),title = "snpclust",
                       )),
                       tableOutput("df_data_out")
 
+             ),
+             tabPanel("Retrieve Samples information",value = "samples",
+                      fluidRow(
+                        h3("BMS connection"),
+                        column(width = 3,
+                               selectizeInput("bmsendpoint","BMS end point", choices = names(options("snpclust.bmscons")$snpclust.bmscons)),
+                               passwordInput("bmstoken","BMS token"),
+                               actionButton("connect_bms","Connect"),
+                               htmlOutput("connect_res"),
+                               tags$hr(),
+                               #selectizeInput("crop","Crop", choices = NA),
+                               selectizeInput("program","Programme", choices = NULL),
+                               #tags$hr(),
+                               #selectizeInput("sample_list","Sample List", choices = NULL),
+                               checkboxInput('loop_over_progs', 'Search in all programs', FALSE),
+                               actionButton("fetch_samples","Fetch samples information")
+                               ),
+                        column(9,dataTableOutput("samples_info",height = "600px"),
+                               div(style="display: inline-block;vertical-align:top;",actionButton("special_samples","Toggle selected as special samples")),
+                               div(style="display: inline-block;vertical-align:top;",actionButton("update_samples","Update samples information")),
+                               htmlOutput("update_samp_res")),
+#                        column(2),
+#                        column(2),
+#
+                               #checkboxInput('header', 'Header', TRUE),
+                               #numericInput(inputId = 'skip',label = 'Number of lines to skip',value = 0)),
+                        tags$hr()
+                        )
              ),
              tabPanel("Match Columns",value = "match",
                       #selectInput("kcol", label = "Identification Column", choices = NA),
@@ -72,7 +106,7 @@ ui <- fluidPage(theme = shinytheme("sandstone"),title = "snpclust",
                       sidebarLayout(
                         sidebarPanel(
                           selectizeInput("SNP", label = "SNP", choices = ""),
-                          selectizeInput("Plate", label = "Plate", choices = "", multiple=TRUE),
+                          selectizeInput("Plate", label = "Plate", choices = "", multiple=TRUE,options = list(plugins= list('remove_button'))),
                           #selectInput("whichcall", label = "Show Call", choices = c("current","new"),selected = "new"),
                           radioButtons('whichcall', 'Show Call',
                                        c(Current='current',
@@ -100,7 +134,7 @@ ui <- fluidPage(theme = shinytheme("sandstone"),title = "snpclust",
 
 server <- function(input, output, session) {
 
-  values <- reactiveValues(df_data = NULL, newdf = NULL)
+  values <- reactiveValues(df_data = NULL, newdf = NULL, samplesdfd = NULL)
   observeEvent(input$lc,{
     if (input$lc){
       updateRadioButtons(session,inputId = "sep",selected = '\t')
@@ -118,6 +152,7 @@ server <- function(input, output, session) {
       if (input$intertek_guess){
         rawfile<-scan(inFile$datapath, what = "character", sep = "\n",blank.lines.skip= F, quiet = T)
         updateNumericInput(session, "skip", value =  grep("^Data$",rawfile))
+        updateRadioButtons(session, "sep",selected = ",")
       }
       df<-fread(inFile$datapath, header = input$header,
                      sep = input$sep, quote = input$quote, skip = input$skip, dec = input$dec, stringsAsFactors = F)
@@ -143,6 +178,97 @@ server <- function(input, output, session) {
         }
       }
     }
+  })
+  observeEvent(input$connect_bms,{
+      bmscon <<- options("snpclust.bmscons")$snpclust.bmscons[[input$bmsendpoint]]
+      if (!is.null(input$bmstoken)){
+        bmscon$token <<- input$bmstoken
+        #crops <- bmsapi_Get_crops(bmscon)$res
+        #updateSelectizeInput(session, "crop",choices = crops)
+        progs <<- tryCatch(bmsapi_Get_Programs(bmscon, crop = bmscon$crop),
+                           error=function(e) e)
+        # For offline testing
+        #progs <<- data.table(name="toto")
+        if ("error"%in%class(progs)){
+          output$connect_res = renderText({paste("<span style=\"color:red\">Connection failed</span>")})
+        }else {
+          output$connect_res = renderText({paste("<span style=\"color:green\">Connection succeeded</span>")})
+          updateSelectizeInput(session, "program",choices = progs$name, selected = progs$name[1])
+        }
+      }
+    })
+  observe({
+    if (input$program!=""){
+      selprogUUID <- progs[name==input$program,programDbId]
+      samplelists <<- bmsapi_Get_sample_list_search(bmscon, crop = bmscon$crop, programUUID = selprogUUID)
+  #    updateSelectizeInput(session, "sample_list",choices = samplelists$listName)
+    }
+  })
+  observeEvent(input$fetch_samples,{
+    if (input$program!=""){
+      if (input$loop_over_progs == TRUE){
+        progs_search <- progs$programDbId
+      } else {
+        progs_search <- progs[name==input$program,programDbId]
+      }
+      samples <- data.table(NULL)
+      for (pgDbId in progs_search){
+        samplelists <- bmsapi_Get_sample_list_search(bmscon, crop = bmscon$crop, programUUID = pgDbId)
+        for (l in 1:nrow(samplelists)){
+          samp <- bmsapi_Get_sample_list_download(con = bmscon,
+                                                  crop = "groundnut",
+                                                  programUUID = pgDbId,
+                                                  listId = samplelists[l, id],
+                                                  listName = samplelists[l, listName])
+          samples <- rbind(samples,samp)
+        }
+      }
+      # Testing
+        samples <- unique(samples[,.(SAMPLE_UID,SAMPLE_NAME,GID)])
+      #} else{
+      #  dfd<-unique(data.table(values$df_data)[,.(SubjectID, Found=FALSE,Special=FALSE)])
+      #  samples <- data.table(SAMPLE_UID=unique(dfd$SubjectID),SAMPLE_NAME=paste0("Samp",1:nrow(dfd)),GID=1:nrow(dfd))
+      #  samples <-samples[-c(10,35,48,800)]
+      #  samples [100, SAMPLE_NAME:="CS16" ]
+    }
+      #samples <- bmsapi_Get_Samples(bmscon, programUUID=selprogUUID)
+      dfd<-unique(data.table(values$df_data)[,.(SubjectID, Found=FALSE,Special=FALSE)])
+      samplesdfd<-samples[dfd, on=c(SAMPLE_UID="SubjectID")]
+      samplesdfd[!is.na(GID), Found:=TRUE]
+      values$samplesdfd <- samplesdfd
+  })
+
+  observeEvent(input$special_samples,{
+    samplesdfd<-copy(values$samplesdfd)
+    samplesdfd[input$samples_info_rows_selected, Special:=!Special]
+    values$samplesdfd<-samplesdfd
+  })
+
+  observeEvent(input$update_samples,{
+    dfd <- data.table(values$df_data)
+    dfd <- values$samplesdfd[!is.na(GID),.(SAMPLE_UID,SAMPLE_NAME,GID, Special)][dfd, on=c(SAMPLE_UID="SubjectID")]
+    setnames(dfd,old = "SAMPLE_UID",new = "SubjectID")
+    dfd [!is.na(GID), Sample_Plot_Label:=paste0(SAMPLE_NAME," - GID:",GID)]
+    dfd [is.na(Sample_Plot_Label), Sample_Plot_Label:=SubjectID]
+    dfd [is.na(Special), Special:=FALSE]
+    dfd [Special==TRUE, shape:="circle plus"]
+    dfd [Special==FALSE, shape:="circle"]
+    values$df_data <- dfd[,c(colnames(values$df_data),"Sample_Plot_Label", "Special", "shape"), with=F]
+    output$update_samp_res = renderText({paste("<span style=\"color:green\">Samples information updated: use the Sample_Plot_Label column as Sample Column at next step</span>")})
+  })
+
+  output$samples_info<-renderDataTable({
+    datatable(
+      {values$samplesdfd},
+      filter = list(position='top', clear=F),
+      escape = F,
+      rownames = F,
+      extension = c("Scroller"),
+      selection = 'multiple',
+      option = list(
+        scrollX = T, scrollY = 450, scrollCollapse = F, scroller = T,
+        dom = 'Brti'
+      ))
   })
   observe({
     updateSelectizeInput(session, "Xcol",choices = colnames(values$df_data), selected = "X.Fluor")
@@ -196,7 +322,7 @@ server <- function(input, output, session) {
     temp<-values$newdf
     selSNP<-input$SNP
     if (!is.null(input$Plate)){
-      updateSelectizeInput(session, "SNP",selected=selSNP , choices = unique(temp[temp$Plate%in%input$Plate,"SNP"]),label = paste("SNP (Plate:",input$Plate,")",sep=""))
+      updateSelectizeInput(session, "SNP",selected=selSNP , choices = unique(temp[temp$Plate%in%input$Plate,"SNP"]),label = paste("SNP (Plates:",paste(input$Plate, collapse = ","),")",sep=""))
     } else{
       updateSelectizeInput(session, "SNP",selected=selSNP , choices = unique(temp[,"SNP"]),label = "SNP")
       #updateSelectizeInput(session, "Plate" , choices = unique(temp[,"Plate"]))
@@ -260,7 +386,7 @@ server <- function(input, output, session) {
 
   observe({
     if (!is.null(values$newdf)){
-      ptitle<-paste(ifelse(input$SNP%in%c("","Any SNP"),"",input$SNP),ifelse(input$Plate%in%c("","Any SNP"),"",paste("-",input$Plate)))
+      ptitle<-paste(ifelse(input$SNP%in%c("","Any SNP"),"",input$SNP),ifelse(input$Plate%in%c("","Any SNP"),"",paste("-",paste(input$Plate,collapse = ","))))
       if (input$tetar == TRUE){
       toplot<-values$newdf
       if (!is.null(input$Plate)){
@@ -299,7 +425,7 @@ server <- function(input, output, session) {
       output$plot <- renderPlotly({
         if (input$whichcall=="new"){
           cols <- c("Allele_X" = "#3CB371FF", "Allele_Y" = "#DC143CFF", "Both_Alleles" = "#337AB7FF", "Unknown" = "#FF7F50FF", "Negative"="#808080FF")
-          p <- ggplot(toplot,aes(x=X.Fluor, y=Y.Fluor, colour=NewCall, key = snpclustId, text=paste("Sample:",SampName))) +  geom_point() #+facet_wrap(~Experiment_Name,ncol = 2)
+          p <- ggplot(toplot,aes(x=X.Fluor, y=Y.Fluor, colour=NewCall, key = snpclustId, text=paste("Sample:",SampName), shape=factor(Special))) +geom_point()+ scale_shape_manual(values = c(`FALSE`=16,`TRUE`=13)) #+facet_wrap(~Experiment_Name,ncol = 2)
           p <- p + coord_fixed(ratio = 1, xlim = c(0,maxfluo), ylim = c(0,maxfluo))+ scale_colour_manual(values = cols)
         }else{
           p <- ggplot(toplot,aes(x=X.Fluor, y=Y.Fluor, colour=Call, key = snpclustId, text=paste("Sample:",SampName))) +  geom_point() + coord_fixed(ratio = 1,xlim = c(0,maxfluo), ylim = c(0,maxfluo)) #+facet_wrap(~Experiment_Name,ncol = 2)
