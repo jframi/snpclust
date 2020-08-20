@@ -251,10 +251,10 @@ server <- function(input, output, session) {
     dfd [!is.na(GID), Sample_Plot_Label:=paste0(SAMPLE_NAME," - GID:",GID)]
     dfd [is.na(Sample_Plot_Label), Sample_Plot_Label:=SubjectID]
     dfd [is.na(Special), Special:=FALSE]
-    dfd [Special==TRUE, shape:="circle plus"]
-    dfd [Special==FALSE, shape:="circle"]
-    values$df_data <- dfd[,c(colnames(values$df_data),"Sample_Plot_Label", "Special", "shape"), with=F]
+    dfd [,Special:=c("Standard","Special")[as.numeric(Special)+1]]
+    values$df_data <- dfd[,c(colnames(values$df_data),"Sample_Plot_Label", "Special"), with=F]
     output$update_samp_res = renderText({paste("<span style=\"color:green\">Samples information updated: use the Sample_Plot_Label column as Sample Column at next step</span>")})
+    updateNavbarPage(session, "tabsetId", selected = "match")
   })
 
   output$samples_info<-renderDataTable({
@@ -271,12 +271,12 @@ server <- function(input, output, session) {
       ))
   })
   observe({
-    updateSelectizeInput(session, "Xcol",choices = colnames(values$df_data), selected = "X.Fluor")
-    updateSelectizeInput(session, "Ycol",choices = colnames(values$df_data), selected = "Y.Fluor")
+    updateSelectizeInput(session, "Xcol",choices = colnames(values$df_data), selected = "X")
+    updateSelectizeInput(session, "Ycol",choices = colnames(values$df_data), selected = "Y")
     updateSelectizeInput(session, "Ccol",choices = c("",colnames(values$df_data)), selected = "Call")
-    updateSelectizeInput(session, "Pcol",choices = c("",colnames(values$df_data)), selected = "Experiment_Name")
-    updateSelectizeInput(session, "Scol",choices = c("",colnames(values$df_data)), selected = "Sonde")
-    updateSelectizeInput(session, "Icol",choices = c("",colnames(values$df_data)), selected = "Name")
+    updateSelectizeInput(session, "Pcol",choices = c("",colnames(values$df_data)), selected = "MasterPlate")
+    updateSelectizeInput(session, "Scol",choices = c("",colnames(values$df_data)), selected = "SNPID")
+    updateSelectizeInput(session, "Icol",choices = c("",colnames(values$df_data)), selected = "Sample_Plot_Label")
     #updateSelectInput(session, "kcol",choices = colnames(values$df_data), selected = "order")
   })
 
@@ -386,7 +386,7 @@ server <- function(input, output, session) {
 
   observe({
     if (!is.null(values$newdf)){
-      ptitle<-paste(ifelse(input$SNP%in%c("","Any SNP"),"",input$SNP),ifelse(input$Plate%in%c("","Any SNP"),"",paste("-",paste(input$Plate,collapse = ","))))
+      ptitle<-paste(ifelse(input$SNP%in%c("","Any SNP"),"",input$SNP))#,ifelse(input$Plate%in%c("","Any SNP"),"",paste("-",paste(input$Plate,collapse = ","))))
       if (input$tetar == TRUE){
       toplot<-values$newdf
       if (!is.null(input$Plate)){
@@ -405,7 +405,7 @@ server <- function(input, output, session) {
           p <- ggplot(toplot,aes(x=Theta, y=R, colour=NewCall, key= snpclustId, text=paste("Sample:",SampName))) +  geom_point() #+facet_wrap(~Experiment_Name,ncol = 2)
           p <- p + scale_colour_manual(values = cols)
         }else{
-          p <- ggplot(toplot[toplot$Plate%in%input$Plate & toplot$SNP==input$SNP,],aes(x=Theta, y=R, colour=Call, key= snpclustId, text=paste("Sample:",SampName))) +  geom_point() #+facet_wrap(~Experiment_Name,ncol = 2)
+          p <- ggplot(toplot[toplot$Plate%in%input$Plate & toplot$SNP==input$SNP,],aes(x=Theta, y=R, colour=Call, key= snpclustId, text=paste("Sample:",SampName))) +  geom_point()+ aes(shape=Special) + scale_shape_manual(values =c(Standard=16,Special=11), name="")  #+facet_wrap(~Experiment_Name,ncol = 2)
         }
         ggplotly(p+ggtitle(ptitle)) %>% layout(dragmode = "lasso")
       })
@@ -425,10 +425,10 @@ server <- function(input, output, session) {
       output$plot <- renderPlotly({
         if (input$whichcall=="new"){
           cols <- c("Allele_X" = "#3CB371FF", "Allele_Y" = "#DC143CFF", "Both_Alleles" = "#337AB7FF", "Unknown" = "#FF7F50FF", "Negative"="#808080FF")
-          p <- ggplot(toplot,aes(x=X.Fluor, y=Y.Fluor, colour=NewCall, key = snpclustId, text=paste("Sample:",SampName), shape=factor(Special))) +geom_point()+ scale_shape_manual(values = c(`FALSE`=16,`TRUE`=13)) #+facet_wrap(~Experiment_Name,ncol = 2)
+          p <- ggplot(toplot,aes(x=X.Fluor, y=Y.Fluor, colour=NewCall, key = snpclustId, text=paste("Sample:",SampName)))+ geom_point()+ aes(shape=Special) + scale_shape_manual(values = c(Standard=16,Special=11), name="") #+facet_wrap(~Experiment_Name,ncol = 2)
           p <- p + coord_fixed(ratio = 1, xlim = c(0,maxfluo), ylim = c(0,maxfluo))+ scale_colour_manual(values = cols)
         }else{
-          p <- ggplot(toplot,aes(x=X.Fluor, y=Y.Fluor, colour=Call, key = snpclustId, text=paste("Sample:",SampName))) +  geom_point() + coord_fixed(ratio = 1,xlim = c(0,maxfluo), ylim = c(0,maxfluo)) #+facet_wrap(~Experiment_Name,ncol = 2)
+          p <- ggplot(toplot,aes(x=X.Fluor, y=Y.Fluor, colour=Call, key = snpclustId, text=paste("Sample:",SampName))) +  geom_point()+ aes(shape=Special) + scale_shape_manual(values = c(Standard=16,Special=11), name="")  + coord_fixed(ratio = 1,xlim = c(0,maxfluo), ylim = c(0,maxfluo)) #+facet_wrap(~Experiment_Name,ncol = 2)
         }
         ggplotly(p+ggtitle(ptitle)) %>% layout(dragmode = "lasso")
       })
