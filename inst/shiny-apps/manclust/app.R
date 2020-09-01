@@ -223,18 +223,12 @@ server <- function(input, output, session) {
           samples <- rbind(samples,samp)
         }
       }
-      # Testing
         samples <- unique(samples[,.(SAMPLE_UID,SAMPLE_NAME,GID)])
-      #} else{
-      #  dfd<-unique(data.table(values$df_data)[,.(SubjectID, Found=FALSE,Special=FALSE)])
-      #  samples <- data.table(SAMPLE_UID=unique(dfd$SubjectID),SAMPLE_NAME=paste0("Samp",1:nrow(dfd)),GID=1:nrow(dfd))
-      #  samples <-samples[-c(10,35,48,800)]
-      #  samples [100, SAMPLE_NAME:="CS16" ]
     }
-      #samples <- bmsapi_Get_Samples(bmscon, programUUID=selprogUUID)
       dfd<-unique(data.table(values$df_data)[,.(SubjectID, Found=FALSE,Special=FALSE)])
       samplesdfd<-samples[dfd, on=c(SAMPLE_UID="SubjectID")]
       samplesdfd[!is.na(GID), Found:=TRUE]
+      output$update_samp_res = renderText({paste("<span style=\"color:green\">",nrow(samplesdfd[!is.na(GID)]),"samples found out of ",nrow(samplesdfd)," samples. Use the 'Found' column to identify missing samples</span>")})
       values$samplesdfd <- samplesdfd
   })
 
