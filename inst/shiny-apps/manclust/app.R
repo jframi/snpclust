@@ -1,14 +1,25 @@
 library(plotly)
 library(shiny)
+library(shinyBS)
 library(shinythemes)
-#library(snpclust)
 library(data.table)
 library(DT)
-library(brapi)
-library(bmsaddins)
+library(brapirv2)
+library(shinyWidgets)
 
 options(warn =-1)
 options(shiny.maxRequestSize=300*1024^2)
+max_brapi_snp_number <- 3000
+
+if (is.null(options()$brapi.cons)) {
+  brapisupport <-FALSE
+  brapi_connections <- NULL
+} else {
+  brapisupport <-TRUE
+  brapi_connections <- names(options("brapi.cons")$brapi.cons)
+
+}
+
 
 
 valid_file<-function(df,lc){
@@ -22,53 +33,87 @@ valid_file<-function(df,lc){
     return(TRUE)
   }
 }
-ui <- fluidPage(theme = shinytheme("sandstone"),title = "snpclust",
-                shinysky::busyIndicator(wait = 1000, text = NULL),
-  navbarPage(title = "snpclust", id = "tabsetId",
-             tabPanel("Load File",value = "load",
-                      fluidRow(
-                      h3("File format"),
-                      checkboxInput('lc', 'LightCycler 96 Format', FALSE),
-                      checkboxInput('intertek_guess', 'Intertek format (will guess number of lines to skip)', FALSE),
-                      column(width = 2,
-                             radioButtons('sep', 'Separator',
-                                          c(Comma=',',
-                                            Semicolon=';',
-                                            Tab='\t'),
-                                          '\t')),
-                      column(2,
-                      radioButtons('quote', 'Quote',
-                                   c(None='',
-                                     'Double Quote'='"',
-                                     'Single Quote'="'"),
-                                   '')),
-                      column(2,
-                      radioButtons('dec', 'Decimal separator',
-                                   c(Comma=',',
-                                     'Point'='.'),
-                                   '.')),
-                      column(2,
-                      checkboxInput('header', 'Header', TRUE),
-                      numericInput(inputId = 'skip',label = 'Number of lines to skip',value = 0)),
-                      tags$hr(),
-                      fileInput('file1', 'Choose file to upload',
-                                accept = c(
-                                  'text/csv',
-                                  'text/comma-separated-values',
-                                  'text/tab-separated-values',
-                                  'text/plain',
-                                  '.csv',
-                                  '.tsv'
-                                )
-                      )),
-                      tableOutput("df_data_out")
 
-             ),
+ui <- fluidPage(theme = shinytheme("flatly"),
+                title = "snpclust",
+                shinysky::busyIndicator(wait = 1000, text = NULL),
+                tags$link(rel = "stylesheet", type = "text/css", href = "custom-div.css"),
+  navbarPage(title = "snpclust", id = "tabsetId",
+             tabPanel("Load data",value = "load",
+                      #navlistPanel(widths = c(1,11),"From",
+                      h4("Load data from file or from BrAPI endpoint:"),
+                      switchInput("brapiorfile",   label = "Click to choose",
+                                  value = ifelse(brapisupport,TRUE,FALSE),
+                                  onLabel = "BrAPI",
+                                  offLabel = "File",labelWidth = 130, onStatus = "success", offStatus = "info"
+                      ),
+                      bsCollapse(id="loadfrom", open="From BrAPI",
+                        bsCollapsePanel(title = "From file", style="info",
+                        #tabPanel("File",
+                                 h3("Load data from file"),
+                                 #fluidRow(
+                                   h4("File format"),
+                                   checkboxInput('lc', 'LightCycler 96 Format', FALSE),
+                                   checkboxInput('intertek_guess', 'Intertek format (will guess number of lines to skip)', FALSE),
+                                   column(width = 2,
+                                          radioButtons('sep', 'Separator',
+                                                       c(Comma=',',
+                                                         Semicolon=';',
+                                                         Tab='\t'),
+                                                       '\t')),
+                                   column(2,
+                                          radioButtons('quote', 'Quote',
+                                                       c(None='',
+                                                         'Double Quote'='"',
+                                                         'Single Quote'="'"),
+                                                       '')),
+                                   column(2,
+                                          radioButtons('dec', 'Decimal separator',
+                                                       c(Comma=',',
+                                                         'Point'='.'),
+                                                       '.')),
+                                   column(2,
+                                          checkboxInput('header', 'Header', TRUE),
+                                          numericInput(inputId = 'skip',label = 'Number of lines to skip',value = 0)),
+                                   tags$hr(),
+                                   fileInput('file1', 'Choose file to upload',
+                                             accept = c(
+                                               'text/csv',
+                                               'text/comma-separated-values',
+                                               'text/tab-separated-values',
+                                               'text/plain',
+                                               '.csv',
+                                               '.tsv'
+                                             )
+                                   ),
+                                 tableOutput("df_data_out")
+                        ),
+                        bsCollapsePanel(title = "From BrAPI", style="success",
+                        #tabPanel("BrAPI",
+                                 h3("Load data from BrAPI endpoint"),
+                                 selectizeInput("mainbrapiendpoint","BrAPI end point", choices = brapi_connections),
+                                 passwordInput("mainbrapitoken","Token"),
+                                 actionButton("connect_brapi","Connect"),
+                                 htmlOutput("mainbrapiendpoint_connect_res"),
+                                 selectizeInput("brapi_program", "Program", choices = NULL, selected = NULL,
+                                                options = list(placeholder = 'Select a database',
+                                                            onInitialize = I('function() { this.setValue(""); }')
+                                                            )
+                                                ),
+                                 selectizeInput("brapi_study", "Study", choices = NULL, selected = NULL,
+                                                options = list(
+                                                  placeholder = 'Select a project',
+                                                  onInitialize = I('function() { this.setValue(""); }'))
+                                                ),
+                                htmlOutput("retrieve_variants_res")
+                        )
+                      )),
              tabPanel("Retrieve Samples information",value = "samples",
-                      fluidRow(
-                        h3("BMS connection"),
+                        h3(
+                        div(style="display:inline-block;",img(src="ibp.png", width="30px"), style="left;"),
+                        div("BMS connection")),
                         column(width = 3,
-                               selectizeInput("bmsendpoint","BMS end point", choices = names(options("snpclust.bmscons")$snpclust.bmscons)),
+                               selectizeInput("bmsendpoint","BMS end point", choices = brapi_connections),
                                passwordInput("bmstoken","BMS token"),
                                actionButton("connect_bms","Connect"),
                                htmlOutput("connect_res"),
@@ -77,7 +122,7 @@ ui <- fluidPage(theme = shinytheme("sandstone"),title = "snpclust",
                                selectizeInput("program","Programme", choices = NULL),
                                #tags$hr(),
                                #selectizeInput("sample_list","Sample List", choices = NULL),
-                               checkboxInput('loop_over_progs', 'Search in all programs', FALSE),
+                               #checkboxInput('loop_over_progs', 'Search in all programs', FALSE),
                                actionButton("fetch_samples","Fetch samples information")
                                ),
                         column(9,dataTableOutput("samples_info",height = "600px"),
@@ -90,7 +135,6 @@ ui <- fluidPage(theme = shinytheme("sandstone"),title = "snpclust",
                                #checkboxInput('header', 'Header', TRUE),
                                #numericInput(inputId = 'skip',label = 'Number of lines to skip',value = 0)),
                         tags$hr()
-                        )
              ),
              tabPanel("Match Columns",value = "match",
                       #selectInput("kcol", label = "Identification Column", choices = NA),
@@ -105,24 +149,32 @@ ui <- fluidPage(theme = shinytheme("sandstone"),title = "snpclust",
              tabPanel("Clustering",value="clust",
                       sidebarLayout(
                         sidebarPanel(
-                          selectizeInput("SNP", label = "SNP", choices = ""),
+                          selectizeInput("SNP", label = "SNP", choices = "",
+                                         options = list(placeholder = 'Select a SNP',
+                                                        onInitialize = I('function() { this.setValue(""); }')
+                                         )),
                           selectizeInput("Plate", label = "Plate", choices = "", multiple=TRUE,options = list(plugins= list('remove_button'))),
                           #selectInput("whichcall", label = "Show Call", choices = c("current","new"),selected = "new"),
-                          radioButtons('whichcall', 'Show Call',
-                                       c(Current='current',
-                                         New='new'),
-                                       'new'),
+                          # radioButtons('whichcall', 'Display Call',
+                          #              c(Current='current',
+                          #                New='new'),
+                          #              'current'),
+                          switchInput("whichcall2",   label = "Switch current/new call",
+                                      value = TRUE,
+                                      onLabel = "Current",
+                                      offLabel = "New", labelWidth = 180, onStatus = "info", offStatus = "warning"),
                           actionButton(inputId = "copycall", label = "Copy current to new"),
                           actionButton(inputId = "resetnewcall", label = "Reset new call"),
                           checkboxInput(inputId = "tetar",label = "Use Theta/R",value = 0),
                           tags$hr(),
-                          actionButton(inputId = "updateY", label = "Score as Allele Y", style="color: #fff; background-color: #dc143c; border-color: #2e6da4"),#br(),br(),
-                          actionButton(inputId = "updateH", label = "Score as Heterozygous", style="color: #fff; background-color: #337ab7; border-color: #2e6da4"),br(),br(),
+                          actionButton(inputId = "updateY", label = "Score as Allele Y", style="color: #fff; background-color: #dc143c; border-color: #2e6da4"),br(),br(),
+                          actionButton(inputId = "updateH", label = "Score as Heterozygous", style="color: #fff; background-color: #337ab7; border-color: #2e6da4"),#br(),br(),
                           actionButton(inputId = "updateX", label = "Score as Allele X", style="color: #fff; background-color: #3cb371; border-color: #2e6da4"),br(),br(),
-                          actionButton(inputId = "updateU", label = "Score as Unknown", style="color: #fff; background-color: #ff7f50; border-color: #2e6da4"),#br(),br(),
+                          actionButton(inputId = "updateU", label = "Score as Missing", style="color: #fff; background-color: #ff7f50; border-color: #2e6da4"),#br(),br(),
                           actionButton(inputId = "updateN", label = "Score as Negative", style="color: #fff; background-color: #808080; border-color: #2e6da4"),br(),br(),
                           tags$hr(),
-                          downloadButton('downloadData', 'Download new file')
+                          uiOutput("exportData")
+                          #downloadButton('downloadData', 'Download new file')
 
                         ),
                         mainPanel(
@@ -134,7 +186,7 @@ ui <- fluidPage(theme = shinytheme("sandstone"),title = "snpclust",
 
 server <- function(input, output, session) {
 
-  values <- reactiveValues(df_data = NULL, newdf = NULL, samplesdfd = NULL)
+  values <- reactiveValues(df_data = NULL, newdf = NULL, samplesdfd = NULL, toplot=NULL, xcall=NULL, ycall=NULL, hcall=NULL)
   observeEvent(input$lc,{
     if (input$lc){
       updateRadioButtons(session,inputId = "sep",selected = '\t')
@@ -142,6 +194,93 @@ server <- function(input, output, session) {
       updateRadioButtons(session,inputId = "dec",selected = '.')
       updateCheckboxInput(session,inputId = "header", value=T)
       updateNumericInput(session, inputId = "skip", value = 0)
+    }
+  })
+
+#  "mainbrapiendpoint"
+#  "mainbrapitoken"
+  observeEvent(input$brapiorfile,{
+    if (input$brapiorfile){
+        updateCollapse(session, id="loadfrom", open="From BrAPI", close = "From file")
+        hideTab(inputId = "tabsetId", target = "samples")
+        hideTab(inputId = "tabsetId", target = "match")
+        output$exportData <- renderUI({
+          actionButton(inputId = "pushtobrapi",label = "Save data to BrAPI endpoint", icon = icon(name = "cloud-upload-alt"))
+        })
+        if (!brapisupport){
+        showNotification("To use BrAPI end-points, a list of brapi connections needs to be defined with options(brapi.cons= list(Connection1= brapirv2::brapi_connect(...))) before running the app", type="error",closeButton = TRUE, duration = NULL)
+        #updateSwitchInput(session = session, inputId = "brapiorfile", value = FALSE)
+      }
+    }else{
+      updateCollapse(session, id="loadfrom", open="From file", close = "From BrAPI")
+      output$exportData <- renderUI({
+        downloadButton('downloadData', 'Download new file')
+      })
+
+      showTab(inputId = "tabsetId", target = "samples")
+      showTab(inputId = "tabsetId", target = "match")
+    }
+  })
+  observeEvent(input$loadfrom,{
+    if(input$loadfrom=="From file"){
+      updateSwitchInput(session = session, inputId = "brapiorfile", value = FALSE)
+    } else {
+      updateSwitchInput(session = session, inputId = "brapiorfile", value = TRUE)
+    }
+  })
+  observeEvent(input$connect_brapi,{
+
+    if (input$mainbrapiendpoint!=""){
+      brapicon <<- options()$brapi.cons[[input$mainbrapiendpoint]]
+      brapicon$token <<- input$mainbrapitoken
+      brapidbs <<- tryCatch(brapirv2::brapi_get_programs(brapicon),
+                         error=function(e) e)
+      # For offline testing
+      #progs <<- data.table(name="toto")
+      if ("error"%in%class(brapidbs)){
+        output$mainbrapiendpoint_connect_res = renderText({paste("<span style=\"color:red\">Connection failed</span>")})
+      }else {
+        if (input$mainbrapitoken==""){
+          output$mainbrapiendpoint_connect_res = renderText({paste("<span style=\"color:green\">Connection succeeded (No token provided, listing public datasets)</span>")})
+        }else{
+          output$mainbrapiendpoint_connect_res = renderText({paste("<span style=\"color:green\">Connection succeeded</span>")})
+        }
+        updateSelectizeInput(session, "brapi_program",choices = brapidbs$programDbId)
+      }
+    }
+  })
+
+  observeEvent(input$brapi_program,{
+    if (input$mainbrapiendpoint!=""  & input$brapi_program!=""){
+    brapicon <<- options()$brapi.cons[[input$mainbrapiendpoint]]
+    brapicon$token <<- input$mainbrapitoken
+    brapi_studies <<- tryCatch(brapirv2::brapi_get_studies(brapicon, trialDbId=input$brapi_program),
+                                  error=function(e) e)
+    updateSelectizeInput(session, "brapi_study",choices = brapi_studies$studyName, selected = NULL)
+    }
+  })
+
+  observeEvent(input$brapi_study,{
+    if (input$mainbrapiendpoint!="" & input$brapi_program!="" & input$brapi_study!=""){
+      brapicon <<- options()$brapi.cons[[input$mainbrapiendpoint]]
+      brapicon$token <<- input$mainbrapitoken
+      selected_studyDbId <<- brapi_studies[brapi_studies$studyName==input$brapi_study, "studyDbId"]
+      brapi_variantsets <<- tryCatch(brapirv2::brapi_get_variantsets(brapicon, studyDbId =  htmltools::urlEncodePath(selected_studyDbId)), error=function(e) e)
+      brapi_variantsetsIds <- unique(brapi_variantsets$variantSetDbId)
+      brapi_variants <<- do.call(rbind,
+                                 lapply(brapi_variantsetsIds,
+                                        function(a) tryCatch({
+                                          brapirv2::brapi_get_variants(brapicon, variantSetDbId = htmltools::urlEncodePath(a), pageSize = max_brapi_snp_number)
+                                          },error=function(e) e)
+                                 )
+      )
+      #updateSelectizeInput(session, inputId = "SNP", choices = data.frame(label=brapi_variants$variantNames, value=brapi_variants$variantDbId), server = T)
+      updateSelectizeInput(session, inputId = "SNP", choices = brapi_variants$variantNames, server = T, selected = "")
+      if (nrow(brapi_variants)==max_brapi_snp_number){
+        output$retrieve_variants_res = renderUI(HTML(paste("Found more than ",max_brapi_snp_number," variants:", paste(brapi_variants$variantNames[1:10],collapse = ", "), "...</br>", "Keeping only the first ",max_brapi_snp_number," variants")))
+      }else{
+        output$retrieve_variants_res = renderText({paste("Found", nrow(brapi_variants), "variants:", paste(brapi_variants$variantNames[1:10],collapse = ", "), "...")})
+      }
     }
   })
   observe( {
@@ -180,55 +319,54 @@ server <- function(input, output, session) {
     }
   })
   observeEvent(input$connect_bms,{
-      bmscon <<- options("snpclust.bmscons")$snpclust.bmscons[[input$bmsendpoint]]
+      bmscon <<- options()$brapi.cons[[input$bmsendpoint]]
       if (!is.null(input$bmstoken)){
         bmscon$token <<- input$bmstoken
-        #crops <- bmsapi_Get_crops(bmscon)$res
-        #updateSelectizeInput(session, "crop",choices = crops)
-        progs <<- tryCatch(bmsapi_Get_Programs(bmscon, crop = bmscon$crop),
+        progs <<- tryCatch(setDT(brapirv2::brapi_get_programs(bmscon, commonCropName = bmscon$commoncropname)),
                            error=function(e) e)
-        # For offline testing
-        #progs <<- data.table(name="toto")
         if ("error"%in%class(progs)){
           output$connect_res = renderText({paste("<span style=\"color:red\">Connection failed</span>")})
         }else {
           output$connect_res = renderText({paste("<span style=\"color:green\">Connection succeeded</span>")})
-          updateSelectizeInput(session, "program",choices = progs$name, selected = progs$name[1])
+          updateSelectizeInput(session, "program",choices = progs$programName, selected = progs$programName[1])
         }
       }
     })
   observe({
     if (input$program!=""){
-      selprogUUID <- progs[name==input$program,programDbId]
-      samplelists <<- bmsapi_Get_sample_list_search(bmscon, crop = bmscon$crop, programUUID = selprogUUID)
+      #selprogUUID <- progs[programName==input$program,programDbId]
+      #samplelists <<- bmsapi_Get_sample_list_search(bmscon, crop = bmscon$commoncropname, programUUID = selprogUUID)
   #    updateSelectizeInput(session, "sample_list",choices = samplelists$listName)
     }
   })
   observeEvent(input$fetch_samples,{
     if (input$program!=""){
-      if (input$loop_over_progs == TRUE){
-        progs_search <- progs$programDbId
-      } else {
-        progs_search <- progs[name==input$program,programDbId]
-      }
-      samples <- data.table(NULL)
-      for (pgDbId in progs_search){
-        samplelists <- bmsapi_Get_sample_list_search(bmscon, crop = bmscon$crop, programUUID = pgDbId)
-        for (l in 1:nrow(samplelists)){
-          samp <- bmsapi_Get_sample_list_download(con = bmscon,
-                                                  crop = "groundnut",
-                                                  programUUID = pgDbId,
-                                                  listId = samplelists[l, id],
-                                                  listName = samplelists[l, listName])
-          samples <- rbind(samples,samp)
-        }
-      }
-        samples <- unique(samples[,.(SAMPLE_UID,SAMPLE_NAME,GID)])
+      # if (input$loop_over_progs == TRUE){
+      #   progs_search <- progs$programDbId
+      # } else {
+      #   progs_search <- progs[programName==input$program,programDbId]
+      # }
+      # samples <- data.table(NULL)
+      # for (pgDbId in progs_search){
+      #   samplelists <- bmsapi_Get_sample_list_search(bmscon, crop = bmscon$commoncropname, programUUID = pgDbId)
+      #   for (l in 1:nrow(samplelists)){
+      #     samp <- bmsapi_Get_sample_list_download(con = bmscon,
+      #                                             crop = bmscon$commoncropname,
+      #                                             programUUID = pgDbId,
+      #                                             listId = samplelists[l, id],
+      #                                             listName = samplelists[l, listName])
+      #     samples <- rbind(samples,samp)
+      #   }
+      # }
+
+        sampsrchid <- brapi_post_search_samples(con = bmscon, sampleDbIds = unique(values$df_data$SubjectID))
+        samps <- setDT(brapi_get_search_samples_searchResultsDbId(con = bmscon, searchResultsDbId = "660"))
+        samples <- unique(samps[,.(sampleDbId,sampleName,germplasmDbId)])
     }
       dfd<-unique(data.table(values$df_data)[,.(SubjectID, Found=FALSE,Special=FALSE)])
-      samplesdfd<-samples[dfd, on=c(SAMPLE_UID="SubjectID")]
-      samplesdfd[!is.na(GID), Found:=TRUE]
-      output$update_samp_res = renderText({paste("<span style=\"color:green\">",nrow(samplesdfd[!is.na(GID)]),"samples found out of ",nrow(samplesdfd)," samples. Use the 'Found' column to identify missing samples</span>")})
+      samplesdfd<-samples[dfd, on=c(sampleDbId="SubjectID")]
+      samplesdfd[!is.na(germplasmDbId), Found:=TRUE]
+      output$update_samp_res = renderText({paste("<span style=\"color:green\">",nrow(samplesdfd[!is.na(germplasmDbId)]),"samples found out of ",nrow(samplesdfd)," samples. Use the 'Found' column to identify missing samples</span>")})
       values$samplesdfd <- samplesdfd
   })
 
@@ -240,9 +378,9 @@ server <- function(input, output, session) {
 
   observeEvent(input$update_samples,{
     dfd <- data.table(values$df_data)
-    dfd <- values$samplesdfd[!is.na(GID),.(SAMPLE_UID,SAMPLE_NAME,GID, Special)][dfd, on=c(SAMPLE_UID="SubjectID")]
-    setnames(dfd,old = "SAMPLE_UID",new = "SubjectID")
-    dfd [!is.na(GID), Sample_Plot_Label:=paste0(SAMPLE_NAME," - GID:",GID)]
+    dfd <- values$samplesdfd[!is.na(germplasmDbId),.(sampleDbId,sampleName,germplasmDbId, Special)][dfd, on=c(sampleDbId="SubjectID")]
+    setnames(dfd,old = "sampleDbId",new = "SubjectID")
+    dfd [!is.na(germplasmDbId), Sample_Plot_Label:=paste0(sampleName," - GUID:",germplasmDbId)]
     dfd [is.na(Sample_Plot_Label), Sample_Plot_Label:=SubjectID]
     dfd [is.na(Special), Special:=FALSE]
     dfd [,Special:=c("Standard","Special")[as.numeric(Special)+1]]
@@ -270,7 +408,7 @@ server <- function(input, output, session) {
     updateSelectizeInput(session, "Ccol",choices = c("",colnames(values$df_data)), selected = "Call")
     updateSelectizeInput(session, "Pcol",choices = c("",colnames(values$df_data)), selected = "MasterPlate")
     updateSelectizeInput(session, "Scol",choices = c("",colnames(values$df_data)), selected = "SNPID")
-    updateSelectizeInput(session, "Icol",choices = c("",colnames(values$df_data)), selected = "Sample_Plot_Label")
+    updateSelectizeInput(session, "Icol",choices = c("",colnames(values$df_data)), selected = colnames(values$df_data)[colnames(values$df_data)%in%c("Sample_Plot_Label","SubjectID")][1])
     #updateSelectInput(session, "kcol",choices = colnames(values$df_data), selected = "order")
   })
 
@@ -317,11 +455,18 @@ server <- function(input, output, session) {
     selSNP<-input$SNP
     if (!is.null(input$Plate)){
       updateSelectizeInput(session, "SNP",selected=selSNP , choices = unique(temp[temp$Plate%in%input$Plate,"SNP"]),label = paste("SNP (Plates:",paste(input$Plate, collapse = ","),")",sep=""))
+      if (!is.null(input$Plate)){
+        values$toplot<-values$toplot[values$toplot$Plate%in%input$Plate,]
+      }
+      if (input$SNP!=""){
+        values$toplot<-values$toplot[values$toplot$SNP==input$SNP,]
+      }
     } else{
       updateSelectizeInput(session, "SNP",selected=selSNP , choices = unique(temp[,"SNP"]),label = "SNP")
       #updateSelectizeInput(session, "Plate" , choices = unique(temp[,"Plate"]))
     }
   })
+
   observeEvent(input$SNP,{
     temp<-values$newdf
     selplate<-input$Plate
@@ -330,104 +475,247 @@ server <- function(input, output, session) {
     } else{
       updateSelectizeInput(session, "Plate", selected=selplate, choices = sort(unique(temp[,"Plate"])),label = "Plate")
     }
+    if (input$brapiorfile & input$SNP!=""){
+      brapi_variantsets <<- tryCatch(brapirv2::brapi_get_variantsets(brapicon, studyDbId =  htmltools::urlEncodePath(selected_studyDbId)), error=function(e) e)
+      brapi_variantsetsIds <- unique(brapi_variantsets$variantSetDbId)
+      brapi_calls <<- do.call(rbind,
+                                 lapply(brapi_variantsetsIds,
+                                        function(a) tryCatch({
+                                          brapi_get_calls(brapicon, variantDbId = htmltools::urlEncodePath(setDT(brapi_variants)[variantNames==input$SNP,variantDbId]), variantSetDbId = htmltools::urlEncodePath(a), expandHomozygotes = TRUE, sepPhased = "/", sepUnphased = "/", unknownString = "NA")
+                                        },error=function(e) e)
+                                 )
+      )
+      setDT(brapi_calls)
+      brapi_calls[nchar(genotype.values)==1 & genotype.values%in%c("A","C","G","T","N","-"), genotype.values:=paste0(genotype.values,"/",genotype.values)]
+      if (any(colnames(brapi_calls)=="additionalInfo.FI")){
+        brapi_calls <- cbind(brapi_calls, brapi_calls[, tstrsplit(additionalInfo.FI, split=",", names = c("X.Fluor","Y.Fluor"))])
+        brapi_calls[, X.Fluor:=as.numeric(X.Fluor)]
+        brapi_calls[, Y.Fluor:=as.numeric(Y.Fluor)]
+        brapi_calls[, snpclustId:=1:.N]
+        #brapi_calls[, Special:=FALSE]
+        brapi_calls[, NewCall:="Unknown"]
+        brapi_calls[, Plate:="Unknown"]
+        brapi_calls[, variantName:=input$SNP]
+        brapi_calls[,genotype.values:=unlist(genotype.values)]
+        setnames(brapi_calls, old=c("variantName", "genotype.values", "callSetDbId", "callSetName"), new=c("SNP", "Call", "SubjectID", "SampName"))
+        values$newdf <- data.frame(brapi_calls[,.(SNP, Call,snpclustId, SubjectID, SampName, X.Fluor, Y.Fluor, NewCall, Plate)])
+
+      }else{
+        values$newdf <- data.frame(SNP="", Call="",snpclustId="", SubjectID="", SampName="", X.Fluor=0, Y.Fluor=0, NewCall="", Plate="")
+      }
+    }
+    if (!is.null(values$newdf)){
+      values$toplot<-values$newdf
+      if (!is.null(input$Plate)){
+        values$toplot<-values$toplot[values$toplot$Plate%in%input$Plate,]
+      }
+      if (input$SNP!=""){
+        values$toplot<-values$toplot[values$toplot$SNP==input$SNP,]
+      }
+      if (nrow(values$toplot)>0){
+      values$xcall <- data.table(values$toplot)[!is.na(Call),.(X=mean(X.Fluor),Y=mean(Y.Fluor)),Call][which.max(X)]$Call
+      values$ycall <- data.table(values$toplot)[!is.na(Call),.(X=mean(X.Fluor),Y=mean(Y.Fluor)),Call][which.max(Y)]$Call
+      if (any(grepl(substr(values$xcall,1,1),values$toplot$Call) & grepl(substr(values$ycall,1,1),values$toplot$Call))){
+        values$hcall <- values$toplot$Call[grepl(substr(values$xcall,1,1),values$toplot$Call) & grepl(substr(values$ycall,1,1),values$toplot$Call)][1]
+      } else {
+        alls <- sort(c(substr(values$xcall,1,1),substr(values$ycall,1,1)))
+        values$hcall <- paste(alls,collapse = substr(values$xcall,2,2))
+      }
+      updateActionButton(inputId = "updateX", session=session, label = paste0("Score as ", values$xcall))
+      updateActionButton(inputId = "updateY", session=session, label = paste0("Score as ", values$ycall))
+      updateActionButton(inputId = "updateH", session=session, label = paste0("Score as ", values$hcall))
+      }
+    }
+
     })
 
   observeEvent(input$copycall,{
     temp<-values$newdf
-    temp[temp$Plate%in%input$Plate & temp$SNP==input$SNP,"NewCall"]<-gsub(" ", "_", temp[temp$Plate%in%input$Plate & temp$SNP==input$SNP,"Call"])
+    if (!is.null(input$Plate)){
+      temp[temp$Plate%in%input$Plate & temp$SNP==input$SNP,"NewCall"]<-gsub(" ", "_", temp[temp$Plate%in%input$Plate & temp$SNP==input$SNP,"Call"])
+    }else{
+      temp[temp$SNP==input$SNP,"NewCall"]<-gsub(" ", "_", temp[temp$SNP==input$SNP,"Call"])
+    }
     values$newdf<-temp
-
+    values$toplot<-values$newdf
+    if (!is.null(input$Plate)){
+      values$toplot<-values$toplot[values$toplot$Plate%in%input$Plate,]
+    }
+    if (input$SNP!=""){
+      values$toplot<-values$toplot[values$toplot$SNP==input$SNP,]
+    }
   })
   observeEvent(input$resetnewcall,{
     temp<-values$newdf
-    temp[temp$Plate%in%input$Plate & temp$SNP==input$SNP,"NewCall"]<-"Unknown"
+    if (!is.null(input$Plate)){
+      temp[temp$Plate%in%input$Plate & temp$SNP==input$SNP,"NewCall"]<-"Unknown"
+    }else{
+      temp[temp$SNP==input$SNP,"NewCall"]<-"Unknown"
+    }
     values$newdf<-temp
+    values$toplot<-values$newdf
+    if (!is.null(input$Plate)){
+      values$toplot<-values$toplot[values$toplot$Plate%in%input$Plate,]
+    }
+    if (input$SNP!=""){
+      values$toplot<-values$toplot[values$toplot$SNP==input$SNP,]
+    }
 
   })
 
   observeEvent(input$updateX,{
     d <- event_data("plotly_selected")
     temp<-values$newdf
-    temp$NewCall[temp$snpclustId%in%d$key]<- "Allele_X"
+    temp$NewCall[temp$snpclustId%in%d$key]<- values$xcall #"Allele_X"
     values$newdf<-temp
+    values$toplot<-values$newdf
+    if (!is.null(input$Plate)){
+      values$toplot<-values$toplot[values$toplot$Plate%in%input$Plate,]
+    }
+    if (input$SNP!=""){
+      values$toplot<-values$toplot[values$toplot$SNP==input$SNP,]
+    }
+
   })
   observeEvent(input$updateY,{
     d <- event_data("plotly_selected")
     temp<-values$newdf
-    temp$NewCall[temp$snpclustId%in%d$key]<- "Allele_Y"
+    temp$NewCall[temp$snpclustId%in%d$key]<- values$ycall #"Allele_Y"
     values$newdf<-temp
+    values$toplot<-values$newdf
+    if (!is.null(input$Plate)){
+      values$toplot<-values$toplot[values$toplot$Plate%in%input$Plate,]
+    }
+    if (input$SNP!=""){
+      values$toplot<-values$toplot[values$toplot$SNP==input$SNP,]
+    }
+
   })
   observeEvent(input$updateH,{
     d <- event_data("plotly_selected")
     temp<-values$newdf
-    temp$NewCall[temp$snpclustId%in%d$key]<- "Both_Alleles"
+    temp$NewCall[temp$snpclustId%in%d$key]<- values$hcall #"Both_Alleles"
     values$newdf<-temp
+    values$toplot<-values$newdf
+    if (!is.null(input$Plate)){
+      values$toplot<-values$toplot[values$toplot$Plate%in%input$Plate,]
+    }
+    if (input$SNP!=""){
+      values$toplot<-values$toplot[values$toplot$SNP==input$SNP,]
+    }
+
   })
   observeEvent(input$updateU,{
     d <- event_data("plotly_selected")
     temp<-values$newdf
-    temp$NewCall[temp$snpclustId%in%d$key]<- "Unknown"
+    temp$NewCall[temp$snpclustId%in%d$key]<- "NA"
     values$newdf<-temp
+    values$toplot<-values$newdf
+    if (!is.null(input$Plate)){
+      values$toplot<-values$toplot[values$toplot$Plate%in%input$Plate,]
+    }
+    if (input$SNP!=""){
+      values$toplot<-values$toplot[values$toplot$SNP==input$SNP,]
+    }
+
   })
   observeEvent(input$updateN,{
     d <- event_data("plotly_selected")
     temp<-values$newdf
     temp$NewCall[temp$snpclustId%in%d$key]<- "Negative"
     values$newdf<-temp
+    values$toplot<-values$newdf
+    if (!is.null(input$Plate)){
+      values$toplot<-values$toplot[values$toplot$Plate%in%input$Plate,]
+    }
+    if (input$SNP!=""){
+      values$toplot<-values$toplot[values$toplot$SNP==input$SNP,]
+    }
+
   })
 
   output$df_data_out <- renderTable(head(values$df_data))
 
   observe({
     if (!is.null(values$newdf)){
-      ptitle<-paste(ifelse(input$SNP%in%c("","Any SNP"),"",input$SNP))#,ifelse(input$Plate%in%c("","Any SNP"),"",paste("-",paste(input$Plate,collapse = ","))))
-      if (input$tetar == TRUE){
-      toplot<-values$newdf
-      if (!is.null(input$Plate)){
-        toplot<-toplot[toplot$Plate%in%input$Plate,]
-      }
       if (input$SNP!=""){
-        toplot<-toplot[toplot$SNP==input$SNP,]
-      }
-      toplot$X.Fluor<-toplot$X.Fluor-min(toplot$X.Fluor)
-      toplot$Y.Fluor<-toplot$Y.Fluor-min(toplot$Y.Fluor)
+        ptitle<-paste(ifelse(input$SNP%in%c("","Any SNP"),"",input$SNP))#,ifelse(input$Plate%in%c("","Any SNP"),"",paste("-",paste(input$Plate,collapse = ","))))
+        if (input$tetar == TRUE){
+          isolate({
+            if (any(!c("R","Theta")%in%colnames(values$toplot))){
+              values$toplot<-cbind(values$toplot,xy2ThetaR(values$toplot[,c("X.Fluor","Y.Fluor")]))
+            }
+          })
+          output$plot <- renderPlotly({
+            # if (input$whichcall2==FALSE){
+            #   cols <- c("Allele_X" = "#3CB371FF", "Allele_Y" = "#DC143CFF", "Both_Alleles" = "#337AB7FF", "NA" = "#FF7F50FF", "Negative"="#808080FF")
+            #   names(cols) <- c(values$xcall,values$ycall,values$hcall,"NA", "Negative" )
+            #   p <- ggplot(values$toplot,aes(x=Theta, y=R, colour=NewCall, key= snpclustId, text=paste("Sample:",SampName))) +  geom_point() #+facet_wrap(~Experiment_Name,ncol = 2)
+            #   p <- p + scale_colour_manual(values = cols)
+            # }else{
+            #   p <- ggplot(values$toplot[values$toplot$Plate%in%input$Plate & values$toplot$SNP==input$SNP,],aes(x=Theta, y=R, colour=Call, key= snpclustId, text=paste("Sample:",SampName))) +  geom_point()+ aes(shape=Special) + scale_shape_manual(values =c(Standard=16,Special=11), name="")  #+facet_wrap(~Experiment_Name,ncol = 2)
+            # }
+            if (input$whichcall2==FALSE){
+              cols <- c("Allele_X" = "#3CB371FF", "Allele_Y" = "#DC143CFF", "Both_Alleles" = "#337AB7FF", "NA" = "#FF7F50FF", "Negative"="#808080FF")
+              names(cols) <- c(values$xcall,values$ycall,values$hcall,"NA", "Negative" )
+              if(any(colnames(values$toplot)=="Special")){
+                p <- ggplot(values$toplot,aes(x=Theta, y=R, colour=NewCall, key = snpclustId, text=paste(paste("Sample:",SampName),paste("Call:",Call), sep="\n"))) + geom_point()+ aes(shape=Special) + scale_shape_manual(values = c(Standard=16,Special=11), name="") #+facet_wrap(~Experiment_Name,ncol = 2)
+              }else{
+                p <- ggplot(values$toplot,aes(x=Theta, y=R, colour=NewCall, key = snpclustId, text=paste(paste("Sample:",SampName),paste("Call:",Call), sep="\n")))+ geom_point()
+              }
+              p <- p +  scale_colour_manual(values = cols)
+            }else{
+              if(any(colnames(values$toplot)=="Special")){
+                p <- ggplot(values$toplot,aes(x=Theta, y=R, colour=Call, key = snpclustId, text=paste(paste("Sample:",SampName),paste("NewCall:",NewCall), sep="\n"))) +  geom_point()+ aes(shape=Special) + scale_shape_manual(values = c(Standard=16,Special=11), name="")  + coord_fixed(ratio = 1,xlim = c(0,maxfluo), ylim = c(0,maxfluo)) #+facet_wrap(~Experiment_Name,ncol = 2)
+              }else{
+                p <- ggplot(values$toplot,aes(x=Theta, y=R, colour=Call, key = snpclustId, text=paste(paste("Sample:",SampName),paste("NewCall:",NewCall), sep="\n"))) +  geom_point()   #+facet_wrap(~Experiment_Name,ncol = 2)
+              }
+            }
 
-      toplot<-cbind(toplot,xy2ThetaR(toplot[,c("X.Fluor","Y.Fluor")]))
-      output$plot <- renderPlotly({
-        if (input$whichcall=="new"){
-          cols <- c("Allele_X" = "#3CB371FF", "Allele_Y" = "#DC143CFF", "Both_Alleles" = "#337AB7FF", "Unknown" = "#FF7F50FF", "Negative"="#808080FF")
-          p <- ggplot(toplot,aes(x=Theta, y=R, colour=NewCall, key= snpclustId, text=paste("Sample:",SampName))) +  geom_point() #+facet_wrap(~Experiment_Name,ncol = 2)
-          p <- p + scale_colour_manual(values = cols)
+            ggplotly(p+ggtitle(ptitle)) %>% layout(dragmode = "lasso")
+          })
+
         }else{
-          p <- ggplot(toplot[toplot$Plate%in%input$Plate & toplot$SNP==input$SNP,],aes(x=Theta, y=R, colour=Call, key= snpclustId, text=paste("Sample:",SampName))) +  geom_point()+ aes(shape=Special) + scale_shape_manual(values =c(Standard=16,Special=11), name="")  #+facet_wrap(~Experiment_Name,ncol = 2)
-        }
-        ggplotly(p+ggtitle(ptitle)) %>% layout(dragmode = "lasso")
-      })
+          #toplot<-values$newdf
+          #if (!is.null(input$Plate)){
+          #  toplot<-toplot[toplot$Plate%in%input$Plate,]
+          #}
+          #if (input$SNP!=""){
+          #  toplot<-toplot[toplot$SNP==input$SNP,]
+          #}
+          values$toplot$X.Fluor<-values$toplot$X.Fluor-min(values$toplot$X.Fluor)
+          values$toplot$Y.Fluor<-values$toplot$Y.Fluor-min(values$toplot$Y.Fluor)
 
-    }else{
-      toplot<-values$newdf
-      toplot$X.Fluor<-toplot$X.Fluor-min(toplot$X.Fluor)
-      toplot$Y.Fluor<-toplot$Y.Fluor-min(toplot$Y.Fluor)
-      if (!is.null(input$Plate)){
-        toplot<-toplot[toplot$Plate%in%input$Plate,]
-      }
-      if (input$SNP!=""){
-        toplot<-toplot[toplot$SNP==input$SNP,]
-      }
-
-      maxfluo<-max(c(toplot$X.Fluor,toplot$Y.Fluor))
-      output$plot <- renderPlotly({
-        if (input$whichcall=="new"){
-          cols <- c("Allele_X" = "#3CB371FF", "Allele_Y" = "#DC143CFF", "Both_Alleles" = "#337AB7FF", "Unknown" = "#FF7F50FF", "Negative"="#808080FF")
-          p <- ggplot(toplot,aes(x=X.Fluor, y=Y.Fluor, colour=NewCall, key = snpclustId, text=paste("Sample:",SampName)))+ geom_point()+ aes(shape=Special) + scale_shape_manual(values = c(Standard=16,Special=11), name="") #+facet_wrap(~Experiment_Name,ncol = 2)
-          p <- p + coord_fixed(ratio = 1, xlim = c(0,maxfluo), ylim = c(0,maxfluo))+ scale_colour_manual(values = cols)
-        }else{
-          p <- ggplot(toplot,aes(x=X.Fluor, y=Y.Fluor, colour=Call, key = snpclustId, text=paste("Sample:",SampName))) +  geom_point()+ aes(shape=Special) + scale_shape_manual(values = c(Standard=16,Special=11), name="")  + coord_fixed(ratio = 1,xlim = c(0,maxfluo), ylim = c(0,maxfluo)) #+facet_wrap(~Experiment_Name,ncol = 2)
+          maxfluo<-max(c(values$toplot$X.Fluor,values$toplot$Y.Fluor))
+          minfluo<-min(c(values$toplot$X.Fluor,values$toplot$Y.Fluor))
+          output$plot <- renderPlotly({
+            if (input$whichcall2==FALSE){
+              cols <- c("Allele_X" = "#3CB371FF", "Allele_Y" = "#DC143CFF", "Both_Alleles" = "#337AB7FF", "NA" = "#FF7F50FF", "Negative"="#808080FF")
+              names(cols) <- c(values$xcall,values$ycall,values$hcall,"NA", "Negative" )
+              if(any(colnames(values$toplot)=="Special")){
+                p <- ggplot(values$toplot,aes(x=X.Fluor, y=Y.Fluor, colour=NewCall, key = snpclustId, text=paste("Sample:",SampName)))+ geom_point()+ aes(shape=Special) + scale_shape_manual(values = c(Standard=16,Special=11), name="") #+facet_wrap(~Experiment_Name,ncol = 2)
+              }else{
+                p <- ggplot(values$toplot,aes(x=X.Fluor, y=Y.Fluor, colour=NewCall, key = snpclustId, text=paste("Sample:",SampName)))+ geom_point()
+              }
+              p <- p + coord_fixed(ratio = 1, xlim = c(0,maxfluo), ylim = c(0,maxfluo))+ scale_colour_manual(values = cols)
+            }else{
+              if(any(colnames(values$toplot)=="Special")){
+                p <- ggplot(values$toplot,aes(x=X.Fluor, y=Y.Fluor, colour=Call, key = snpclustId, text=paste("Sample:",SampName))) +  geom_point()+ aes(shape=Special) + scale_shape_manual(values = c(Standard=16,Special=11), name="")  + coord_fixed(ratio = 1,xlim = c(0,maxfluo), ylim = c(0,maxfluo)) #+facet_wrap(~Experiment_Name,ncol = 2)
+              }else{
+                p <- ggplot(values$toplot,aes(x=X.Fluor, y=Y.Fluor, colour=Call, key = snpclustId, text=paste("Sample:",SampName))) +  geom_point()  + coord_fixed(ratio = 1,xlim = c(0,maxfluo), ylim = c(0,maxfluo)) #+facet_wrap(~Experiment_Name,ncol = 2)
+              }
+            }
+            ggplotly(p+ggtitle(ptitle)) %>% layout(dragmode = "lasso")
+          })
         }
-        ggplotly(p+ggtitle(ptitle)) %>% layout(dragmode = "lasso")
-      })
-    }
-    }
+      }
+      }
+  })
+  observeEvent(input$pushtobrapi,{
+    showModal(modalDialog(
+      "Push of data back to BrAPI endpoint is not yet implemented",
+      easyClose = TRUE
+    ))
   })
   output$downloadData <- downloadHandler(
     filename = function() {
