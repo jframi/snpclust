@@ -1,6 +1,6 @@
 xy2ThetaR<-function(x){
   r<-apply(x,1,function(a) sqrt(a[1]^2+a[2]^2))
-  theta<-apply(x,1,function(a) atan(a[2]/a[1]))
+  theta <- -apply(x,1,function(a) atan(a[2]/a[1]))
   return(data.frame( Theta=theta,R=r))
 
 }
