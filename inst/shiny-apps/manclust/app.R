@@ -362,9 +362,20 @@ server <- function(input, output, session) {
       #     samples <- rbind(samples,samp)
       #   }
       # }
-
-        sampsrchid <- brapi_post_search_samples(con = bmscon, sampleDbIds = unique(values$df_data$SubjectID))
-        samps <- setDT(brapi_get_search_samples_searchResultsDbId(con = bmscon, searchResultsDbId = sampsrchid))
+        sidslookup <- unique(values$df_data$SubjectID)
+        sidslookup <- sidslookup[sidslookup!=""]
+        sampsrchid <- brapi_post_search_samples(con = bmscon, sampleDbIds = sidslookup)
+        samps <- brapi_get_search_samples_searchResultsDbId(con = bmscon, searchResultsDbId = sampsrchid$searchResultsDbId)
+        nbpages <- attr(samps, which = "pagination")$totalPages
+        if (nbpages > 1){
+          samps <- rbind(samps, do.call(rbind,
+                                        lapply(1:(nbpages-1),
+                                               function(p) brapi_get_search_samples_searchResultsDbId(con = bmscon, searchResultsDbId = sampsrchid$searchResultsDbId, page = p)
+                                               )
+                                        )
+          )
+        }
+        setDT(samps)
         samples <- unique(samps[,.(sampleDbId,sampleName,germplasmDbId)])
     }
       dfd<-unique(data.table(values$df_data)[,.(SubjectID, Found=FALSE,Special=FALSE)])
