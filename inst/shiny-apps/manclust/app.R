@@ -304,6 +304,7 @@ server <- function(input, output, session) {
                                           },error=function(e) e)
                                  )
       )
+      values$snpinfos <- data.table(brapi_variants)[,.(SNPID=variantNames, AlleleX=referenceBases, AlleleY=alternateBases)]
       #updateSelectizeInput(session, inputId = "SNP", choices = data.frame(label=brapi_variants$variantNames, value=brapi_variants$variantDbId), server = T)
       updateSelectizeInput(session, inputId = "SNP", choices = brapi_variants$variantNames, server = T, selected = "")
       if (nrow(brapi_variants)==max_brapi_snp_number){
@@ -538,20 +539,30 @@ server <- function(input, output, session) {
                                  )
       )
       setDT(brapi_calls)
-      brapi_calls[nchar(genotype.values)==1 & genotype.values%in%c("A","C","G","T","N","-"), genotype.values:=paste0(genotype.values,"/",genotype.values)]
-      if (any(colnames(brapi_calls)=="additionalInfo.FI")){
-        brapi_calls <- cbind(brapi_calls, brapi_calls[, tstrsplit(additionalInfo.FI, split=",", names = c("X.Fluor","Y.Fluor"))])
-        brapi_calls[, X.Fluor:=as.numeric(X.Fluor)]
-        brapi_calls[, Y.Fluor:=as.numeric(Y.Fluor)]
-        brapi_calls[, snpclustId:=1:.N]
-        #brapi_calls[, Special:=FALSE]
-        brapi_calls[, NewCall:="Unknown"]
-        brapi_calls[, Plate:="Unknown"]
-        brapi_calls[, variantName:=input$SNP]
-        brapi_calls[,genotype.values:=unlist(genotype.values)]
-        setnames(brapi_calls, old=c("variantName", "genotype.values", "callSetDbId", "callSetName"), new=c("SNP", "Call", "SubjectID", "SampName"))
+      #brapi_calls[nchar(genotype.values)==1 & genotype.values%in%c("A","C","G","T","N","-"), genotype.values:=paste0(genotype.values,"/",genotype.values)]
+      if (any(colnames(brapi_calls)=="genotypeMetadata.fieldAbbreviation")){
+        brapi_calls <- brapi_calls[genotypeMetadata.fieldAbbreviation=="FI"]
+        if (nrow(brapi_calls)>0){
+          brapi_calls <- cbind(brapi_calls, brapi_calls[, tstrsplit(genotypeMetadata.fieldValue, split=",", names = c("X.Fluor","Y.Fluor"))])
+          brapi_calls[, X.Fluor:=as.numeric(X.Fluor)]
+          brapi_calls[, Y.Fluor:=as.numeric(Y.Fluor)]
+          brapi_calls[, snpclustId:=1:.N]
+          brapi_calls[, NewCall:="Unknown"]
+          brapi_calls[, Plate:="Unknown"]
+          brapi_calls[, variantName:=input$SNP]
+          brapi_calls[, callSetName:=callSetDbId]
+          #brapi_calls[,genotypeValue:=unlist(genotypeValue)]
+          setnames(brapi_calls,
+                   old=c("variantName",
+                         "genotypeValue",
+                         "callSetDbId",
+                         "callSetName"),
+                   new=c("SNP",
+                         "Call",
+                         "SubjectID",
+                         "SampName"))
         values$newdf <- data.frame(brapi_calls[,.(SNP, Call,snpclustId, SubjectID, SampName, X.Fluor, Y.Fluor, NewCall, Plate)])
-
+        }
       }else{
         values$newdf <- data.frame(SNP="", Call="",snpclustId="", SubjectID="", SampName="", X.Fluor=0, Y.Fluor=0, NewCall="", Plate="")
       }
