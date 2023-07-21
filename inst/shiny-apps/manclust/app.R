@@ -11,7 +11,6 @@ options(warn =-1)
 options(shiny.maxRequestSize=300*1024^2)
 max_brapi_snp_number <- 3000
 
-
 if (is.null(options()$brapi.cons)) {
   brapisupport <-FALSE
   brapi_connections <- NULL
@@ -167,14 +166,28 @@ ui <- fluidPage(theme = shinytheme("flatly"),
                           actionButton(inputId = "copycall", label = "Copy current to new"),
                           actionButton(inputId = "resetnewcall", label = "Reset new call"),
                           checkboxInput(inputId = "tetar",label = "Use Theta/R",value = 0),
+                          checkboxInput(inputId = "fixed_ratio",label = "Fixed axes",value = 0),
                           tags$hr(),
-                          actionButton(inputId = "updateY", label = "Score as Allele Y", style="color: #fff; background-color: #dc143c; border-color: #2e6da4"),br(),br(),
-                          actionButton(inputId = "updateH", label = "Score as Heterozygous", style="color: #fff; background-color: #337ab7; border-color: #2e6da4"),#br(),br(),
-                          actionButton(inputId = "updateX", label = "Score as Allele X", style="color: #fff; background-color: #3cb371; border-color: #2e6da4"),br(),br(),
-                          actionButton(inputId = "updateU", label = "Score as Missing", style="color: #fff; background-color: #ff7f50; border-color: #2e6da4"),#br(),br(),
-                          actionButton(inputId = "updateN", label = "Score as Negative", style="color: #fff; background-color: #808080; border-color: #2e6da4"),br(),br(),
+                          bsCollapse(id="adv_geno_seetings", open=NULL,
+                                     bsCollapsePanel(title = "Advanced Alleles/genotypes settings", style="primary",
+                                                     h4("Alleles"),
+                                                     selectizeInput("snp_x_allele","X Allele", choices = c("A","C","G","T","X"), selected="X"),
+                                                     selectizeInput("snp_y_allele","Y Allele", choices = c("A","C","G","T","Y"), selected="Y"),
+                                                     h4("Genotypes"),
+                                                     numericInput("ploidy","Ploidy", value = 2, min = 1,max = 5, step = 1),
+                                                     textInput("allele_sep", "Allele separator", value = ":"))
+                          ),
+                          tags$hr(),
+                          uiOutput("score_buttons"),
+                          tags$br(),
+                          #actionButton(inputId = "updateY", label = "Score as Allele Y", style="color: #fff; background-color: #dc143c; border-color: #2e6da4"),br(),br(),
+                          #actionButton(inputId = "updateH", label = "Score as Heterozygous", style="color: #fff; background-color: #337ab7; border-color: #2e6da4"),#br(),br(),
+                          #actionButton(inputId = "updateX", label = "Score as Allele X", style="color: #fff; background-color: #3cb371; border-color: #2e6da4"),br(),br(),
+                          actionButton(inputId = "updateU", label = "Score as Missing", style="color: #fff; background-color: #ff7f50; border-color: #ff7f50"),#br(),br(),
+                          actionButton(inputId = "updateN", label = "Score as Negative", style="color: #fff; background-color: #808080; border-color: #808080"),br(),br(),
                           tags$hr(),
                           uiOutput("exportData")
+
                           #downloadButton('downloadData', 'Download new file')
 
                         ),
@@ -187,7 +200,23 @@ ui <- fluidPage(theme = shinytheme("flatly"),
 
 server <- function(input, output, session) {
 
-  values <- reactiveValues(df_data = NULL, newdf = NULL, samplesdfd = NULL, toplot=NULL, xcall=NULL, ycall=NULL, hcall=NULL, cols=NULL, intk_snpinfos=NULL)
+  values <- reactiveValues(df_data = NULL,
+                           newdf = NULL,
+                           samplesdfd = NULL,
+                           toplot=NULL,
+                           xcall=NULL,
+                           ycall=NULL,
+                           hcall=NULL,
+                           cols=NULL,
+                           intk_snpinfos=NULL,
+                           snpinfos=NULL,
+                           alls=NULL,
+                           genots=NULL)
+  scorebts <- reactiveValues()
+  scorebts$ui <- list()
+  o <- reactiveVal(list())
+
+
   observeEvent(input$lc,{
     if (input$lc){
       updateRadioButtons(session,inputId = "sep",selected = '\t')
@@ -215,7 +244,7 @@ server <- function(input, output, session) {
     }else{
       updateCollapse(session, id="loadfrom", open="From file", close = "From BrAPI")
       output$exportData <- renderUI({
-        downloadButton('downloadData', 'Download new file')
+        downloadButton('downloadData', 'Download recoded file')
       })
 
       showTab(inputId = "tabsetId", target = "samples")
@@ -459,11 +488,18 @@ server <- function(input, output, session) {
     }
     #temp$X.Fluor<-temp$X.Fluor-min(temp$X.Fluor)
     #temp$Y.Fluor<-temp$Y.Fluor-min(temp$Y.Fluor)
-    temp[temp$Call%in%c("?","NA", "Uncallable", "Negative"),]$Call <- NA
+    if (any(temp$Call%in%c("?","NA", "Uncallable", "Negative"))){
+      temp[temp$Call%in%c("?","NA", "Uncallable", "Negative"),]$Call <- NA
+    }
     values$newdf<-temp
     updateSelectizeInput(session, "Plate",choices = sort(unique(temp$Plate)))
     updateSelectizeInput(session, "SNP",choices = sort(unique(temp$SNP)))
     updateNavbarPage(session, "tabsetId", selected = "clust")
+    if (input$intertek_guess){
+      values$snpinfos <- values$intk_snpinfos[,.(SNPID,AlleleX, AlleleY)]
+    } else {
+      values$snpinfos <- data.table(SNPID=unique(temp$SNP), AlleleX="X", AlleleY="Y")
+    }
 
   })
   observeEvent(input$Plate,{
@@ -528,20 +564,20 @@ server <- function(input, output, session) {
       if (input$SNP!=""){
         values$toplot<-values$toplot[values$toplot$SNP==input$SNP,]
       }
-      if (nrow(values$toplot)>0){
-        if (input$intertek_guess){
-          values$xcall <- paste0(values$intk_snpinfos[SNPID==input$SNP]$AlleleX, ":" , values$intk_snpinfos[SNPID==input$SNP]$AlleleX)
-          values$ycall <- paste0(values$intk_snpinfos[SNPID==input$SNP]$AlleleY, ":" , values$intk_snpinfos[SNPID==input$SNP]$AlleleY)
-          if(any(paste0(values$intk_snpinfos[SNPID==input$SNP]$AlleleX, ":" , values$intk_snpinfos[SNPID==input$SNP]$AlleleY)%in%values$toplot[values$toplot$SNP==input$SNP,]$Call)){
-            values$hcall <- paste0(values$intk_snpinfos[SNPID==input$SNP]$AlleleX, ":" , values$intk_snpinfos[SNPID==input$SNP]$AlleleY)
-          } else {
-            if (any(paste0(values$intk_snpinfos[SNPID==input$SNP]$AlleleY, ":" , values$intk_snpinfos[SNPID==input$SNP]$AlleleX)%in%values$toplot[values$toplot$SNP==input$SNP,]$Call)){
-              values$hcall <- paste0(values$intk_snpinfos[SNPID==input$SNP]$AlleleY, ":" , values$intk_snpinfos[SNPID==input$SNP]$AlleleX)
-            } else {
-              values$hcall <- paste(sort(c(values$intk_snpinfos[SNPID==input$SNP]$AlleleX, values$intk_snpinfos[SNPID==input$SNP]$AlleleY)), collapse=":" )
-            }
-          }
-        }
+      #if (nrow(values$toplot)>0){
+      #  if (input$intertek_guess){
+      #    values$xcall <- paste0(values$intk_snpinfos[SNPID==input$SNP]$AlleleX, ":" , values$intk_snpinfos[SNPID==input$SNP]$AlleleX)
+      #    values$ycall <- paste0(values$intk_snpinfos[SNPID==input$SNP]$AlleleY, ":" , values$intk_snpinfos[SNPID==input$SNP]$AlleleY)
+      #    if(any(paste0(values$intk_snpinfos[SNPID==input$SNP]$AlleleX, ":" , values$intk_snpinfos[SNPID==input$SNP]$AlleleY)%in%values$toplot[values$toplot$SNP==input$SNP,]$Call)){
+      #      values$hcall <- paste0(values$intk_snpinfos[SNPID==input$SNP]$AlleleX, ":" , values$intk_snpinfos[SNPID==input$SNP]$AlleleY)
+      #    } else {
+      #      if (any(paste0(values$intk_snpinfos[SNPID==input$SNP]$AlleleY, ":" , values$intk_snpinfos[SNPID==input$SNP]$AlleleX)%in%values$toplot[values$toplot$SNP==input$SNP,]$Call)){
+      #        values$hcall <- paste0(values$intk_snpinfos[SNPID==input$SNP]$AlleleY, ":" , values$intk_snpinfos[SNPID==input$SNP]$AlleleX)
+      #      } else {
+      #        values$hcall <- paste(sort(c(values$intk_snpinfos[SNPID==input$SNP]$AlleleX, values$intk_snpinfos[SNPID==input$SNP]$AlleleY)), collapse=":" )
+      #      }
+      #    }
+      #  }
         # genots <- values$toplot$Call[grepl("[A,C,G,T]\\:[A,C,G,T]", values$toplot$Call)]
         # alls <- unique(c(substr(genots,1,1),substr(genots,3,3)))
         # call1 <- paste0(alls[1],":", alls[1])
@@ -565,15 +601,82 @@ server <- function(input, output, session) {
         # values$ycall <- paste0(alls[2],":", alls[2])
         # values$hcall <- paste0(alls[1],":", alls[2])
         # #}
-      updateActionButton(inputId = "updateX", session=session, label = paste0("Score as ", values$xcall))
-      updateActionButton(inputId = "updateY", session=session, label = paste0("Score as ", values$ycall))
-      updateActionButton(inputId = "updateH", session=session, label = paste0("Score as ", values$hcall))
-      values$cols <- c("#3CB371FF", "#DC143CFF", "#337AB7FF", "#FF00FFFF")
-      names(values$cols) <- c(values$xcall, values$ycall, values$hcall, "NTC")
+        #if (!is.null(values$xcall) & !is.null(values$ycall) & !is.null(values$hcall)){
+        #  updateActionButton(inputId = "updateX", session=session, label = paste0("Score as ", values$xcall))
+        #  updateActionButton(inputId = "updateY", session=session, label = paste0("Score as ", values$ycall))
+        #  updateActionButton(inputId = "updateH", session=session, label = paste0("Score as ", values$hcall))
+        #  values$cols <- c("#3CB371FF", "#DC143CFF", "#337AB7FF", "#FF00FFFF")
+        #  names(values$cols) <- c(values$xcall, values$ycall, values$hcall, "NTC")
+        #} else {
+        #  values$xcall <- "X:X"
+        #  values$ycall <- "Y:Y"
+        #  values$hcall <- "X:Y"
+        #  values$cols <- c("#3CB371FF", "#DC143CFF", "#337AB7FF", "#FF00FFFF")
+        #  names(values$cols) <- c(values$xcall, values$ycall, values$hcall, "NTC")
+        #}
+      #}
+        updateSelectizeInput(session = session, inputId = "snp_x_allele", selected = values$snpinfos[SNPID==input$SNP, AlleleX])
+        updateSelectizeInput(session = session, inputId = "snp_y_allele", selected = values$snpinfos[SNPID==input$SNP, AlleleY])
       }
-    }
 
     })
+  ####$$$
+  observeEvent(input$snp_x_allele,{
+    if (!is.null(values$snpinfos)){
+      values$snpinfos <- copy(values$snpinfos[SNPID==input$SNP, AlleleX:=input$snp_x_allele])
+    }
+  })
+  observeEvent(input$snp_y_allele,{
+    if (!is.null(values$snpinfos)){
+      values$snpinfos <- copy(values$snpinfos[SNPID==input$SNP, AlleleY:=input$snp_y_allele])
+    }
+  })
+
+  observe({
+    if (!is.null(values$snpinfos) & input$SNP!=""){
+      #values$alls <- c(values$snpinfos[SNPID==input$SNP, AlleleX], values$snpinfos[SNPID==input$SNP, AlleleY])
+      values$alls <- c(input$snp_x_allele, input$snp_y_allele)
+      n <- input$ploidy
+      #values$genots <- unlist(lapply(0:n, function(a) paste(c(rep(values$alls[1],a), rep(values$alls[2],n-a)), collapse = input$allele_sep)))
+      values$genots <- unlist(lapply(0:n, function(a) paste(c(rep(values$alls[1],a), rep(values$alls[2],n-a)), collapse = "")))
+      isolate({
+        values$cols <- c("#3CB371FF", colorRampPalette(c("#00CCC5", "#4E00D6"))(n-1), "#DC143CFF")
+        #names(values$cols) <- values$genots
+        names(values$cols) <- unlist(lapply(strsplit(values$genots, split = ""), function(a) paste(a,collapse=input$allele_sep)))
+      })
+      scorebts$ui <- lapply(values$genots, function(g) list(actionButton(inputId = paste0("scoreb",gsub(input$allele_sep,"",g)),
+                                                                         label = paste0("Score as ",paste(unlist(strsplit(g, split = "")), collapse = input$allele_sep)),
+                                                                         style=paste0("color: #fff; background-color: ",values$cols[[which(values$genots==g)]],"; border-color: ",values$cols[[which(values$genots==g)]]))))
+      output$score_buttons <- renderUI({scorebts$ui})
+    }
+  })
+
+  observe({
+    req(!is.null(values$genots))
+    isolate({
+      lapply(o(), function(x){x$destroy()})
+      #inputBtn <- paste0("scoreb", gsub(input$allele_sep,"",values$genots))
+      inputBtn <- paste0("scoreb", values$genots)
+      #o(lapply(values$genots, function(x){
+      o(lapply(inputBtn, function(x){
+          #observeEvent(input[[paste0("scoreb", gsub(input$allele_sep,"",x))]],{
+          observeEvent(input[[x]],{
+          d <- event_data("plotly_selected")
+          temp<-values$newdf
+          g <- gsub("scoreb","",x)
+          temp$NewCall[temp$snpclustId%in%d$key]<- paste(unlist(strsplit(g, split = "")),collapse=input$allele_sep)
+          values$newdf<-temp
+          values$toplot<-values$newdf
+          if (!is.null(input$Plate)){
+            values$toplot<-values$toplot[values$toplot$Plate%in%input$Plate,]
+          }
+          if (input$SNP!=""){
+            values$toplot<-values$toplot[values$toplot$SNP==input$SNP,]
+          }
+        })
+      }))
+    })
+  })
 
   observeEvent(input$copycall,{
     temp<-values$newdf
@@ -713,10 +816,10 @@ server <- function(input, output, session) {
             }else{
               if(any(colnames(values$toplot)=="Special")){
                 p <- ggplot(values$toplot,aes(x=Theta, y=R, colour=Call, key = snpclustId, text=paste(paste("Sample:",SampName),paste("NewCall:",NewCall), sep="\n"))) +  geom_point()+ aes(shape=Special) + scale_shape_manual(values = c(Standard=16,Special=11), name="")  + coord_fixed(ratio = 1,xlim = c(0,maxfluo), ylim = c(0,maxfluo)) #+facet_wrap(~Experiment_Name,ncol = 2)
-                p <- p + scale_colour_manual(values = values$cols, na.value = "#FF7F50FF")
+                #p <- p + scale_colour_manual(values = values$cols, na.value = "#FF7F50FF")
               }else{
                 p <- ggplot(values$toplot,aes(x=Theta, y=R, colour=Call, key = snpclustId, text=paste(paste("Sample:",SampName),paste("NewCall:",NewCall), sep="\n"))) +  geom_point()   #+facet_wrap(~Experiment_Name,ncol = 2)
-                p <- p + scale_colour_manual(values = values$cols, na.value = "#FF7F50FF")
+                #p <- p + scale_colour_manual(values = values$cols, na.value = "#FF7F50FF")
               }
             }
 
@@ -745,14 +848,24 @@ server <- function(input, output, session) {
               }else{
                 p <- ggplot(values$toplot,aes(x=X.Fluor, y=Y.Fluor, colour=NewCall, key = snpclustId, text=paste("Sample:",SampName)))+ geom_point()
               }
-              p <- p + coord_fixed(ratio = 1, xlim = c(0,maxfluo), ylim = c(0,maxfluo))+ scale_colour_manual(values = values$cols, na.value = "#FF7F50FF")
+              if (input$fixed_ratio){
+                p <- p + coord_fixed(ratio = 1, xlim = c(0,maxfluo), ylim = c(0,maxfluo))
+              }
+              p <- p +  scale_colour_manual(values = values$cols, na.value = "#FF7F50FF")
             }else{
               if(any(colnames(values$toplot)=="Special")){
-                p <- ggplot(values$toplot,aes(x=X.Fluor, y=Y.Fluor, colour=Call, key = snpclustId, text=paste("Sample:",SampName))) +  geom_point()+ aes(shape=Special) + scale_shape_manual(values = c(Standard=16,Special=11), name="")  + coord_fixed(ratio = 1,xlim = c(0,maxfluo), ylim = c(0,maxfluo)) #+facet_wrap(~Experiment_Name,ncol = 2)
-                p <- p + scale_colour_manual(values = values$cols, na.value = "#FF7F50FF")
+                p <- ggplot(values$toplot,aes(x=X.Fluor, y=Y.Fluor, colour=Call, key = snpclustId, text=paste("Sample:",SampName))) +
+                     geom_point()+ aes(shape=Special) + scale_shape_manual(values = c(Standard=16,Special=11), name="")
+                if (input$fixed_ratio){
+                  p <- p + coord_fixed(ratio = 1, xlim = c(0,maxfluo), ylim = c(0,maxfluo))
+                }
+                #p <- p + scale_colour_manual(values = values$cols, na.value = "#FF7F50FF")
               }else{
-                p <- ggplot(values$toplot,aes(x=X.Fluor, y=Y.Fluor, colour=Call, key = snpclustId, text=paste("Sample:",SampName))) +  geom_point()  + coord_fixed(ratio = 1,xlim = c(0,maxfluo), ylim = c(0,maxfluo))
-                p <- p + scale_colour_manual(values = values$cols, na.value = "#FF7F50FF")
+                p <- ggplot(values$toplot,aes(x=X.Fluor, y=Y.Fluor, colour=Call, key = snpclustId, text=paste("Sample:",SampName))) +  geom_point()
+                if (input$fixed_ratio){
+                  p <- p + coord_fixed(ratio = 1, xlim = c(0,maxfluo), ylim = c(0,maxfluo))
+                }
+                #p <- p + scale_colour_manual(values = values$cols, na.value = "#FF7F50FF")
 
               }
             }
