@@ -207,7 +207,7 @@ server <- function(input, output, session) {
                            xcall=NULL,
                            ycall=NULL,
                            hcall=NULL,
-                           cols=NULL,
+                           recols=NULL,
                            intk_snpinfos=NULL,
                            snpinfos=NULL,
                            alls=NULL,
@@ -327,6 +327,8 @@ server <- function(input, output, session) {
         snpinforow <- grep("^SNPs$",rawfile)
         snpinforow_end <- grep("^Scaling$",rawfile)-2
         values$intk_snpinfos <- fread(inFile$datapath, header = input$header, sep = ",", quote = input$quote, skip = snpinforow, nrows = snpinforow_end-snpinforow)
+      } else {
+        updateNumericInput(session, "skip", value =  0)
       }
       df<-fread(inFile$datapath, header = input$header,
                      sep = input$sep, quote = input$quote, skip = input$skip, dec = input$dec, stringsAsFactors = F)
@@ -604,13 +606,13 @@ server <- function(input, output, session) {
       #values$genots <- unlist(lapply(0:n, function(a) paste(c(rep(values$alls[1],a), rep(values$alls[2],n-a)), collapse = input$allele_sep)))
       values$genots <- unlist(lapply(0:n, function(a) paste(c(rep(values$alls[1],a), rep(values$alls[2],n-a)), collapse = "")))
       isolate({
-        values$cols <- c("#3CB371FF", colorRampPalette(c("#00CCC5", "#4E00D6"))(n-1), "#DC143CFF")
-        #names(values$cols) <- values$genots
-        names(values$cols) <- unlist(lapply(strsplit(values$genots, split = ""), function(a) paste(a,collapse=input$allele_sep)))
+        values$recols <- c("#3CB371FF", colorRampPalette(c("#00CCC5", "#4E00D6"))(n-1), "#DC143CFF")
+        #names(values$recols) <- values$genots
+        names(values$recols) <- unlist(lapply(strsplit(values$genots, split = ""), function(a) paste(a,collapse=input$allele_sep)))
       })
       scorebts$ui <- lapply(values$genots, function(g) list(actionButton(inputId = paste0("scoreb",gsub(input$allele_sep,"",g)),
                                                                          label = paste0("Score as ",paste(unlist(strsplit(g, split = "")), collapse = input$allele_sep)),
-                                                                         style=paste0("color: #fff; background-color: ",values$cols[[which(values$genots==g)]],"; border-color: ",values$cols[[which(values$genots==g)]]))))
+                                                                         style=paste0("color: #fff; background-color: ",values$recols[[which(values$genots==g)]],"; border-color: ",values$recols[[which(values$genots==g)]]))))
       output$score_buttons <- renderUI({scorebts$ui})
     }
   })
@@ -776,7 +778,7 @@ server <- function(input, output, session) {
               }else{
                 p <- ggplot(values$toplot,aes(x=Theta, y=R, colour=NewCall, key = snpclustId, text=paste(paste("Sample:",SampName),paste("Call:",Call), sep="\n")))+ geom_point()
               }
-              p <- p +  scale_colour_manual(values = values$cols, na.value = "#FF7F50FF")
+              p <- p +  scale_colour_manual(values = values$recols, na.value = "#FF7F50FF")
             }else{
               if(any(colnames(values$toplot)=="Special")){
                 p <- ggplot(values$toplot,aes(x=Theta, y=R, colour=Call, key = snpclustId, text=paste(paste("Sample:",SampName),paste("NewCall:",NewCall), sep="\n"))) +  geom_point()+ aes(shape=Special) + scale_shape_manual(values = c(Standard=16,Special=11), name="")  + coord_fixed(ratio = 1,xlim = c(0,maxfluo), ylim = c(0,maxfluo)) #+facet_wrap(~Experiment_Name,ncol = 2)
@@ -815,7 +817,7 @@ server <- function(input, output, session) {
               if (input$fixed_ratio){
                 p <- p + coord_fixed(ratio = 1, xlim = c(0,maxfluo), ylim = c(0,maxfluo))
               }
-              p <- p +  scale_colour_manual(values = values$cols, na.value = "#FF7F50FF")
+              p <- p +  scale_colour_manual(values = values$recols, na.value = "#FF7F50FF")
             }else{
               if(any(colnames(values$toplot)=="Special")){
                 p <- ggplot(values$toplot,aes(x=X.Fluor, y=Y.Fluor, colour=Call, key = snpclustId, text=paste("Sample:",SampName))) +
