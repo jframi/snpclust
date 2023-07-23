@@ -9,7 +9,7 @@ library(shinyWidgets)
 
 options(warn =-1)
 options(shiny.maxRequestSize=300*1024^2)
-max_brapi_snp_number <- 3000
+max_brapi_snp_number <- 10000
 
 if (is.null(options()$brapi.cons)) {
   brapisupport <-FALSE
@@ -426,7 +426,7 @@ server <- function(input, output, session) {
 
   observeEvent(input$update_samples,{
     dfd <- data.table(values$df_data)
-    dfd <- values$samplesdfd[!is.na(germplasmDbId),.(sampleDbId,sampleName,germplasmDbId, Special)][dfd, on=c(sampleDbId="SubjectID")]
+    dfd <- values$samplesdfd[,.(sampleDbId,sampleName,germplasmDbId, Special)][dfd, on=c(sampleDbId="SubjectID")]
     setnames(dfd,old = "sampleDbId",new = "SubjectID")
     dfd [!is.na(germplasmDbId), Sample_Plot_Label:=paste0(sampleName," - GUID:",germplasmDbId)]
     dfd [is.na(Sample_Plot_Label), Sample_Plot_Label:=SubjectID]
@@ -838,6 +838,8 @@ server <- function(input, output, session) {
             ggplotly(p+ggtitle(ptitle)) %>% layout(dragmode = "lasso")
           })
         }
+      }else{
+        output$plot <- renderPlotly({NULL})
       }
       }
   })
