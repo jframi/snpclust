@@ -625,6 +625,7 @@ server <- function(input, output, session) {
         values$recols <- c("#3CB371FF", colorRampPalette(c("#00CCC5", "#4E00D6"))(n-1), "#DC143CFF")
         #names(values$recols) <- values$genots
         names(values$recols) <- unlist(lapply(strsplit(values$genots, split = ""), function(a) paste(a,collapse=input$allele_sep)))
+        values$recols <- c(values$recols, NTC="#E54FFF")
       })
       scorebts$ui <- lapply(values$genots, function(g) list(actionButton(inputId = paste0("scoreb",gsub(input$allele_sep,"",g)),
                                                                          label = paste0("Score as ",paste(unlist(strsplit(g, split = "")), collapse = input$allele_sep)),
