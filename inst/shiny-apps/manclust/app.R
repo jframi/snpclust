@@ -171,11 +171,11 @@ ui <- fluidPage(theme = shinytheme("flatly"),
                           bsCollapse(id="adv_geno_seetings", open=NULL,
                                      bsCollapsePanel(title = "Advanced Alleles/genotypes settings", style="primary",
                                                      h4("Alleles"),
-                                                     selectizeInput("snp_x_allele","X Allele", choices = c("A","C","G","T","X"), selected="X"),
-                                                     selectizeInput("snp_y_allele","Y Allele", choices = c("A","C","G","T","Y"), selected="Y"),
+                                                     selectizeInput("snp_x_allele","X Allele", choices = c("A","C","G","T","-","X"), selected="X"),
+                                                     selectizeInput("snp_y_allele","Y Allele", choices = c("A","C","G","T","-","Y"), selected="Y"),
                                                      h4("Genotypes"),
                                                      numericInput("ploidy","Ploidy", value = 2, min = 1,max = 5, step = 1),
-                                                     textInput("allele_sep", "Allele separator", value = ":"))
+                                                     selectizeInput("allele_sep", "Allele separator",choices=c(":","/","|"), selected = ":"))
                           ),
                           tags$hr(),
                           uiOutput("score_buttons"),
@@ -586,13 +586,13 @@ server <- function(input, output, session) {
           calls <- calls[!is.na(calls)]
           values$cols <- calls
           names(values$cols) <- calls
-          values$cols[gsub("[[:punct:]]","",calls)==paste(rep(values$snpinfos[SNPID==input$SNP, AlleleX],2),collapse = "")] <- "#DC143CFF"
-          values$cols[gsub("[[:punct:]]","",calls)==paste(rep(values$snpinfos[SNPID==input$SNP, AlleleY],2),collapse = "")] <- "#3CB371FF"
-          values$cols[gsub("[[:punct:]]","",calls)==paste(c(values$snpinfos[SNPID==input$SNP, AlleleY],values$snpinfos[SNPID==input$SNP, AlleleX]),collapse = "")] <- "#00CCC5FF"
-          values$cols[gsub("[[:punct:]]","",calls)==paste(c(values$snpinfos[SNPID==input$SNP, AlleleX],values$snpinfos[SNPID==input$SNP, AlleleY]),collapse = "")] <- "#00CCC5FF"
-          values$cols[gsub("[[:punct:]]","",calls)=="NTC"] <- "#E54FFF"
+          values$cols[gsub("[:/|]","",calls)==paste(rep(values$snpinfos[SNPID==input$SNP, AlleleX],2),collapse = "")] <- "#DC143CFF"
+          values$cols[gsub("[:/|]","",calls)==paste(rep(values$snpinfos[SNPID==input$SNP, AlleleY],2),collapse = "")] <- "#3CB371FF"
+          values$cols[gsub("[:/|]","",calls)==paste(c(values$snpinfos[SNPID==input$SNP, AlleleY],values$snpinfos[SNPID==input$SNP, AlleleX]),collapse = "")] <- "#00CCC5FF"
+          values$cols[gsub("[:/|]","",calls)==paste(c(values$snpinfos[SNPID==input$SNP, AlleleX],values$snpinfos[SNPID==input$SNP, AlleleY]),collapse = "")] <- "#00CCC5FF"
+          values$cols[gsub("[:/|]","",calls)=="NTC"] <- "#E54FFF"
           values$cols[!grepl("^#([A-Fa-f0-9]{8}|[A-Fa-f0-9]{6})$",values$cols)] <- "#FF7F50FF"
-          guess_seps <- gsub("^.*([[:punct:]]).*$","\\1",na.omit(grep("[[:punct:]]",calls, value = T)))
+          guess_seps <- gsub("^.*([:/|]).*$","\\1",na.omit(grep("[[:punct:]]",calls, value = T)))
           guess_sep <- unique(guess_seps)[which.max(table(guess_seps))]
 
 #$$$
