@@ -21,6 +21,30 @@ draw.polygon<-function(){
   return(pret)
 }
 
+parse_api_url <- function(url){
+  ## get protocol (default = "https://")
+  protocolless_url <- gsub("(^http://|^https://)(.*)$", "\\2",url)
+  brapi_protocol <- gsub("(^http://|^https://)(.*)$", "\\1",url)
+  brapi_protocol <- ifelse(brapi_protocol == url, "https://", brapi_protocol)
+
+  ## get base url and port (default = 443)
+  db_split <- strsplit(gsub("([^/]*).*", "\\1",protocolless_url), ":")
+  brapi_db <- db_split[[1]][1]
+  brapi_port <- ifelse(is.na(db_split[[1]][2]),80,as.numeric(db_split[[1]][2]))
+
+  ## brapi api path (default = "/")
+  brapi_apipath <- ifelse(grepl("/.*",protocolless_url),gsub("[^/]*/(.*)", "\\1", protocolless_url),"/")
+
+  return(
+    list(
+      brapi_protocol = brapi_protocol,
+      brapi_db = brapi_db,
+      brapi_port = brapi_port,
+      brapi_apipath = brapi_apipath
+    )
+  )
+}
+
 # brapi_get_variants <- function (con = NULL, referenceDbId = "", start="", variantDbId="", variantSetDbId="", page = 0, pageSize = 1000) {
 #   usedArgs <- brapirv2:::brapi_usedArgs(origValues = FALSE)
 #   brapirv2::brapi_checkCon(con = usedArgs[["con"]], verbose = FALSE)

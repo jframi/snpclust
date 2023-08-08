@@ -33,7 +33,7 @@ valid_file<-function(df,lc){
     return(TRUE)
   }
 }
-
+#### UI ####
 ui <- fluidPage(theme = shinytheme("flatly"),
                 title = "snpclust",
                 shinysky::busyIndicator(wait = 1000, text = NULL),
@@ -192,12 +192,18 @@ ui <- fluidPage(theme = shinytheme("flatly"),
 
                         ),
                         mainPanel(
-                          plotlyOutput("plot", width = 800, height = 600)
+                          plotlyOutput("plot", width = 800, height = 600),
+                          tags$hr(),
+                          bsCollapse(id="samples_selection", open=NULL,
+                                     bsCollapsePanel(title = "Highlight samples", style="primary",
+                                        dataTableOutput('samples', height = 80)
+                                     ))
                         )
                       )
              ))
 )
 
+#### SERVER ####
 server <- function(input, output, session) {
 
   values <- reactiveValues(df_data = NULL,
@@ -212,10 +218,81 @@ server <- function(input, output, session) {
                            intk_snpinfos=NULL,
                            snpinfos=NULL,
                            alls=NULL,
-                           genots=NULL)
+                           genots=NULL,
+                           main_token=NULL,
+                           bms_token=NULL,
+                           brapi_endpoint_name=NULL,
+                           mainbrapiprogram=NULL,
+                           study_dbid=NULL)
   scorebts <- reactiveValues()
   scorebts$ui <- list()
   o <- reactiveVal(list())
+  parse_GET_param  <- reactive({
+    pars <- parseQueryString(session$clientData$url_search)
+  })
+
+  observeEvent(parse_GET_param(),{
+
+    values$main_token <- parse_GET_param()$maintoken
+    values$bms_token <- parse_GET_param()$bmstoken
+    values$brapi_endpoint_name <- parse_GET_param()$brapiendpointname
+      ### set up connection
+      #parsed_url <- parse_api_url(parse_GET_param()$apiURL)
+    if (!is.null(values$main_token)){
+      updateTextInput(session = session, inputId = "mainbrapitoken", value =  values$main_token)
+    }
+    if (!is.null(values$bms_token)){
+      updateTextInput(session = session, inputId = "bmstoken", value =  values$bms_token)
+    }
+    if (!is.null(values$brapi_endpoint_name)){
+      updateTextInput(session = session, inputId = "mainbrapiendpoint", value =  values$brapi_endpoint_name)
+    }
+    if (!is.null( parse_GET_param()$mainapiURL)){
+      parsed_url <- parse_api_url(parse_GET_param()$mainapiURL)
+      values$maincon <- brapirv2::brapi_connect(
+        secure = TRUE,
+        protocol = parsed_url$brapi_protocol,
+        db = parsed_url$brapi_db,
+        port = parsed_url$brapi_port,
+        apipath = parsed_url$brapi_apipath,
+        multicrop = FALSE,
+        token = parse_GET_param()$maintoken,
+        granttype = "token",
+        clientid = "brapir",
+        bms = FALSE
+      )
+      if (!is.null(parse_GET_param()$mainbrapiprogram)){
+        values$mainbrapiprogram <- parse_GET_param()$mainbrapiprogram
+      }
+      if (!is.null(parse_GET_param()$mainbrapistudy)){
+        values$study_dbid <- parse_GET_param()$mainbrapistudy
+      }
+      if (!is.null( parse_GET_param()$mainapiURL) & !is.null(parse_GET_param()$mainbrapiprogram) & !is.null(parse_GET_param()$mainbrapistudy)){
+        values$brapi_variantsets <<- tryCatch(brapirv2::brapi_get_variantsets(values$maincon, studyDbId =  htmltools::urlEncodePath(values$study_dbid)), error=function(e) e)
+        brapi_variantsetsIds <- unique(brapi_variantsets$variantSetDbId)
+        values$brapi_variantsetsIds <- values$brapi_variantsetsIds[!is.na(values$brapi_variantsetsIds)]
+        values$brapi_variants <<- do.call(rbind,
+                                          lapply(brapi_variantsetsIds,
+                                                 function(a) tryCatch({
+                                                   brapirv2::brapi_get_variants(values$maincon, variantSetDbId = htmltools::urlEncodePath(a), pageSize = max_brapi_snp_number)
+                                                 },error=function(e) e)
+                                          )
+        )
+        values$snpinfos <- data.table(values$brapi_variants)[,.(SNPID=variantNames, AlleleX=referenceBases, AlleleY=alternateBases)]
+        #updateSelectizeInput(session, inputId = "SNP", choices = data.frame(label=brapi_variants$variantNames, value=brapi_variants$variantDbId), server = T)
+        updateSelectizeInput(session, inputId = "SNP", choices = values$brapi_variants$variantNames, server = T, selected = "")
+        if (nrow(values$brapi_variants)==max_brapi_snp_number){
+          output$retrieve_variants_res = renderUI(HTML(paste("Found more than ",max_brapi_snp_number," variants:", paste(values$brapi_variants$variantNames[1:10],collapse = ", "), "...</br>", "Keeping only the first ",max_brapi_snp_number," variants")))
+        }else{
+          output$retrieve_variants_res = renderText({paste("Found", nrow(values$brapi_variants), "variants:", paste(values$brapi_variants$variantNames[1:10],collapse = ", "), "...")})
+        }
+        hideTab(inputId = "tabsetId", target = "load")
+        hideTab(inputId = "tabsetId", target = "samples")
+        hideTab(inputId = "tabsetId", target = "match")
+      }
+
+    }
+  })
 
 
   observeEvent(input$lc,{
@@ -262,9 +339,9 @@ server <- function(input, output, session) {
   observeEvent(input$connect_brapi,{
 
     if (input$mainbrapiendpoint!=""){
-      brapicon <<- options()$brapi.cons[[input$mainbrapiendpoint]]
-      brapicon$token <<- input$mainbrapitoken
-      brapidbs <<- tryCatch(brapirv2::brapi_get_programs(brapicon),
+      values$maincon <- options()$brapi.cons[[input$mainbrapiendpoint]]
+      values$maincon$token <- input$mainbrapitoken
+      brapidbs <<- tryCatch(brapirv2::brapi_get_programs(values$maincon),
                          error=function(e) e)
       # For offline testing
       #progs <<- data.table(name="toto")
@@ -283,9 +360,9 @@ server <- function(input, output, session) {
 
   observeEvent(input$brapi_program,{
     if (input$mainbrapiendpoint!=""  & input$brapi_program!=""){
-    brapicon <<- options()$brapi.cons[[input$mainbrapiendpoint]]
-    brapicon$token <<- input$mainbrapitoken
-    brapi_studies <<- tryCatch(brapirv2::brapi_get_studies(brapicon, trialDbId=input$brapi_program),
+    #values$maincon <<- options()$brapi.cons[[input$mainbrapiendpoint]]
+    #values$maincon$token <<- input$mainbrapitoken
+    brapi_studies <<- tryCatch(brapirv2::brapi_get_studies(values$maincon, trialDbId=input$brapi_program),
                                   error=function(e) e)
     updateSelectizeInput(session, "brapi_study",choices = brapi_studies$studyName, selected = NULL)
     }
@@ -293,26 +370,26 @@ server <- function(input, output, session) {
 
   observeEvent(input$brapi_study,{
     if (input$mainbrapiendpoint!="" & input$brapi_program!="" & input$brapi_study!=""){
-      brapicon <<- options()$brapi.cons[[input$mainbrapiendpoint]]
-      brapicon$token <<- input$mainbrapitoken
-      selected_studyDbId <<- brapi_studies[brapi_studies$studyName==input$brapi_study, "studyDbId"]
-      brapi_variantsets <<- tryCatch(brapirv2::brapi_get_variantsets(brapicon, studyDbId =  htmltools::urlEncodePath(selected_studyDbId)), error=function(e) e)
+      #values$maincon <<- options()$brapi.cons[[input$mainbrapiendpoint]]
+      #values$maincon$token <<- input$mainbrapitoken
+      values$study_dbid <- brapi_studies[brapi_studies$studyName==input$brapi_study, "studyDbId"]
+      values$brapi_variantsets <<- tryCatch(brapirv2::brapi_get_variantsets(values$maincon, studyDbId =  htmltools::urlEncodePath(values$study_dbid)), error=function(e) e)
       brapi_variantsetsIds <- unique(brapi_variantsets$variantSetDbId)
-      brapi_variantsetsIds <- brapi_variantsetsIds[!is.na(brapi_variantsetsIds)]
-      brapi_variants <<- do.call(rbind,
+      values$brapi_variantsetsIds <- values$brapi_variantsetsIds[!is.na(values$brapi_variantsetsIds)]
+      values$brapi_variants <<- do.call(rbind,
                                  lapply(brapi_variantsetsIds,
                                         function(a) tryCatch({
-                                          brapirv2::brapi_get_variants(brapicon, variantSetDbId = htmltools::urlEncodePath(a), pageSize = max_brapi_snp_number)
+                                          brapirv2::brapi_get_variants(values$maincon, variantSetDbId = htmltools::urlEncodePath(a), pageSize = max_brapi_snp_number)
                                           },error=function(e) e)
                                  )
       )
-      values$snpinfos <- data.table(brapi_variants)[,.(SNPID=variantNames, AlleleX=referenceBases, AlleleY=alternateBases)]
+      values$snpinfos <- data.table(values$brapi_variants)[,.(SNPID=variantNames, AlleleX=referenceBases, AlleleY=alternateBases)]
       #updateSelectizeInput(session, inputId = "SNP", choices = data.frame(label=brapi_variants$variantNames, value=brapi_variants$variantDbId), server = T)
-      updateSelectizeInput(session, inputId = "SNP", choices = brapi_variants$variantNames, server = T, selected = "")
-      if (nrow(brapi_variants)==max_brapi_snp_number){
-        output$retrieve_variants_res = renderUI(HTML(paste("Found more than ",max_brapi_snp_number," variants:", paste(brapi_variants$variantNames[1:10],collapse = ", "), "...</br>", "Keeping only the first ",max_brapi_snp_number," variants")))
+      updateSelectizeInput(session, inputId = "SNP", choices = values$brapi_variants$variantNames, server = T, selected = "")
+      if (nrow(values$brapi_variants)==max_brapi_snp_number){
+        output$retrieve_variants_res = renderUI(HTML(paste("Found more than ",max_brapi_snp_number," variants:", paste(values$brapi_variants$variantNames[1:10],collapse = ", "), "...</br>", "Keeping only the first ",max_brapi_snp_number," variants")))
       }else{
-        output$retrieve_variants_res = renderText({paste("Found", nrow(brapi_variants), "variants:", paste(brapi_variants$variantNames[1:10],collapse = ", "), "...")})
+        output$retrieve_variants_res = renderText({paste("Found", nrow(values$brapi_variants), "variants:", paste(values$brapi_variants$variantNames[1:10],collapse = ", "), "...")})
       }
     }
   })
@@ -424,7 +501,34 @@ server <- function(input, output, session) {
     samplesdfd[input$samples_info_rows_selected, Special:=!Special]
     values$samplesdfd<-samplesdfd
   })
-
+  observe({
+    if(!is.null(values$samplesdfd)){
+      output$samples <- DT::renderDataTable(DT::datatable(values$samplesdfd,
+                                                          class="compact",
+                                                          filter = list(position='top', clear=F),
+                                                          escape = F,
+                                                          rownames = F,
+                                                          extension = c("Scroller"),
+                                                          selection = 'multiple',
+                                                          option = list(
+                                                            scrollX = T, scrollY = 450, scrollCollapse = F, scroller = T,
+                                                            dom = 'Blfrtip'#,
+                                                            #buttons = list(list(extend='selectAll',className='selectAll',
+                                                            #                                     text="Select All",
+                                                            #                                     action=DT::JS("function () {
+                                                            #                                                    var table = $('.dataTable').DataTable();
+                                                            #                                                    table.rows({ search: 'applied'}).deselect();
+                                                            #                                                    table.rows({ search: 'applied'}).select();}")),
+                                                            #               list(extend='selectNone',
+                                                            #                        text="Deselect All",
+                                                            #                        action=DT::JS("function () {
+                                                            #                                      var table = $('.dataTable').DataTable();
+                                                            #                                      table.rows({ search: 'applied'}).select();
+                                                            #                                      table.rows({ search: 'applied'}).deselect();}")))
+                                                            )
+                                                          ), server = FALSE)
+    }
+  })
   observeEvent(input$update_samples,{
     dfd <- data.table(values$df_data)
     dfd <- values$samplesdfd[,.(sampleDbId,sampleName,germplasmDbId, Special)][dfd, on=c(sampleDbId="SubjectID")]
@@ -512,15 +616,15 @@ server <- function(input, output, session) {
     temp<-values$newdf
     selSNP<-input$SNP
     if (!is.null(input$Plate)){
-      updateSelectizeInput(session, "SNP",selected=selSNP , choices = unique(temp[temp$Plate%in%input$Plate,"SNP"]),label = paste("SNP (Plates:",paste(input$Plate, collapse = ","),")",sep=""))
+      #updateSelectizeInput(session, "SNP",selected=selSNP , choices = unique(temp[temp$Plate%in%input$Plate,"SNP"]),label = paste("SNP (Plates:",paste(input$Plate, collapse = ","),")",sep=""))
       if (!is.null(input$Plate)){
-        values$toplot<-values$toplot[values$toplot$Plate%in%input$Plate,]
+        values$toplot<-values$newdf[values$newdf$Plate%in%input$Plate,]
       }
-      if (input$SNP!=""){
-        values$toplot<-values$toplot[values$toplot$SNP==input$SNP,]
-      }
+      #if (input$SNP!=""){
+      #  values$toplot<-values$newdf[values$newdf$SNP==input$SNP,]
+      #}
     } else{
-      updateSelectizeInput(session, "SNP",selected=selSNP , choices = unique(temp[,"SNP"]),label = "SNP")
+      #updateSelectizeInput(session, "SNP",selected=selSNP , choices = unique(temp[,"SNP"]),label = "SNP")
       #updateSelectizeInput(session, "Plate" , choices = unique(temp[,"Plate"]))
     }
   })
@@ -535,13 +639,13 @@ server <- function(input, output, session) {
     }
     if (input$SNP!=""){
       if (input$brapiorfile){
-        brapi_variantsets <<- tryCatch(brapirv2::brapi_get_variantsets(brapicon, studyDbId =  htmltools::urlEncodePath(selected_studyDbId)), error=function(e) e)
+        brapi_variantsets <<- tryCatch(brapirv2::brapi_get_variantsets(values$maincon, studyDbId =  htmltools::urlEncodePath(values$study_dbid)), error=function(e) e)
         brapi_variantsetsIds <- unique(brapi_variantsets$variantSetDbId)
         brapi_variantsetsIds <- brapi_variantsetsIds[!is.na(brapi_variantsetsIds)]
         brapi_calls <<- do.call(rbind,
                                    lapply(brapi_variantsetsIds,
                                           function(a) tryCatch({
-                                            brapi_get_calls(brapicon, variantDbId = htmltools::urlEncodePath(setDT(brapi_variants)[variantNames==input$SNP,variantDbId]), variantSetDbId = htmltools::urlEncodePath(a), expandHomozygotes = TRUE, sepPhased = "/", sepUnphased = "/", unknownString = "NA")
+                                            brapi_get_calls(values$maincon, variantDbId = htmltools::urlEncodePath(setDT(brapi_variants)[variantNames==input$SNP,variantDbId]), variantSetDbId = htmltools::urlEncodePath(a), expandHomozygotes = TRUE, sepPhased = "/", sepUnphased = "/", unknownString = "NA")
                                           },error=function(e) e)
                                    )
         )
@@ -550,12 +654,24 @@ server <- function(input, output, session) {
         if (any(colnames(brapi_calls)=="genotypeMetadata.fieldAbbreviation")){
           brapi_calls <- brapi_calls[genotypeMetadata.fieldAbbreviation=="FI" & !is.na(genotypeMetadata.fieldValue)]
           if (nrow(brapi_calls)>0){
+            cs <- brapi_post_search_callsets(values$maincon, callSetDbIds = brapi_calls$callSetDbId)
+            sps <- brapi_post_search_samples(values$maincon, sampleDbIds = cs$sampleDbId)
+            setDT(cs)
+            setDT(sps)
+            values$samplesdfd <- sps[cs, on=.(sampleDbId)]
             brapi_calls <- cbind(brapi_calls, brapi_calls[, tstrsplit(genotypeMetadata.fieldValue, split=",", names = c("X.Fluor","Y.Fluor"))])
             brapi_calls[, X.Fluor:=as.numeric(X.Fluor)]
             brapi_calls[, Y.Fluor:=as.numeric(Y.Fluor)]
             brapi_calls[, snpclustId:=1:.N]
             brapi_calls[, NewCall:="Unknown"]
-            brapi_calls[, Plate:="Unknown"]
+            if (any(grepl("[M,m]aster[[:blank:]]*[P,p]late",colnames(values$samplesdfd)))){
+              platecol <- grep("[M,m]aster[[:blank:]]*[P,p]late",colnames(values$samplesdfd), value = T)[1]
+              brapi_calls <- values$samplesdfd[,c("callSetDbId",platecol), with=FALSE][brapi_calls, on=.(callSetDbId)]
+              brapi_calls[, Plate:=NA]
+              brapi_calls$Plate <- brapi_calls[[platecol]]
+            } else {
+              brapi_calls[, Plate:="Unknown"]
+            }
             brapi_calls[, variantName:=input$SNP]
             brapi_calls[, callSetName:=callSetDbId]
             #brapi_calls[,genotypeValue:=unlist(genotypeValue)]
@@ -569,6 +685,7 @@ server <- function(input, output, session) {
                            "SubjectID",
                            "SampName"))
           values$newdf <- data.frame(brapi_calls[,.(SNP, Call,snpclustId, SubjectID, SampName, X.Fluor, Y.Fluor, NewCall, Plate)])
+          updateSelectizeInput(session = session, inputId = "Plate", choices = unique(values$newdf$Plate))
           }
         }else{
           values$newdf <- data.frame(SNP="", Call="",snpclustId="", SubjectID="", SampName="", X.Fluor=0, Y.Fluor=0, NewCall="", Plate="")
@@ -772,6 +889,7 @@ server <- function(input, output, session) {
     if (!is.null(values$newdf)){
       if (input$SNP!=""){
         ptitle<-paste(ifelse(input$SNP%in%c("","Any SNP"),"",input$SNP))#,ifelse(input$Plate%in%c("","Any SNP"),"",paste("-",paste(input$Plate,collapse = ","))))
+        s <- input$samples_rows_selected
         if (input$tetar == TRUE){
           isolate({
             if (any(!c("R","Theta")%in%colnames(values$toplot))){
@@ -851,6 +969,9 @@ server <- function(input, output, session) {
                 p <- p + scale_colour_manual(values = values$cols, na.value = "#FF7F50FF")
 
               }
+            }
+            if (length(s)){
+              p <- p + geom_point(data=values$toplot[values$toplot$SubjectID%in%values$samplesdfd[s,]$sampleDbId,], aes(x=X.Fluor, y=Y.Fluor), shape = 21, colour = "#000000ff", size=3)
             }
             ggplotly(p+ggtitle(ptitle)) %>% layout(dragmode = "lasso")
           })
