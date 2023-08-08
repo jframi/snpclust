@@ -47,7 +47,7 @@ ui <- fluidPage(theme = shinytheme("flatly"),
                       #            onLabel = "BrAPI",
                       #            offLabel = "File",labelWidth = 130, onStatus = "success", offStatus = "info"
                       #),
-                      bsCollapse(id="loadfrom", open="From BrAPI",
+                      bsCollapse(id="loadfrom", open="From file",
                         bsCollapsePanel(title = "From file", style="info",
                         #tabPanel("File",
                                  h3("Load data from file"),
