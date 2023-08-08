@@ -269,7 +269,7 @@ server <- function(input, output, session) {
       }
       if (!is.null( parse_GET_param()$mainapiURL) & !is.null(parse_GET_param()$mainbrapiprogram) & !is.null(parse_GET_param()$mainbrapistudy)){
         values$brapi_variantsets <<- tryCatch(brapirv2::brapi_get_variantsets(values$maincon, studyDbId =  htmltools::urlEncodePath(values$study_dbid)), error=function(e) e)
-        brapi_variantsetsIds <- unique(brapi_variantsets$variantSetDbId)
+        brapi_variantsetsIds <- unique(values$brapi_variantsets$variantSetDbId)
         values$brapi_variantsetsIds <- values$brapi_variantsetsIds[!is.na(values$brapi_variantsetsIds)]
         values$brapi_variants <<- do.call(rbind,
                                           lapply(brapi_variantsetsIds,
