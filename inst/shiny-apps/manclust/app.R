@@ -374,7 +374,7 @@ server <- function(input, output, session) {
       #values$maincon$token <<- input$mainbrapitoken
       values$study_dbid <- brapi_studies[brapi_studies$studyName==input$brapi_study, "studyDbId"]
       values$brapi_variantsets <<- tryCatch(brapirv2::brapi_get_variantsets(values$maincon, studyDbId =  htmltools::urlEncodePath(values$study_dbid)), error=function(e) e)
-      brapi_variantsetsIds <- unique(brapi_variantsets$variantSetDbId)
+      brapi_variantsetsIds <- unique(values$brapi_variantsets$variantSetDbId)
       values$brapi_variantsetsIds <- values$brapi_variantsetsIds[!is.na(values$brapi_variantsetsIds)]
       values$brapi_variants <<- do.call(rbind,
                                  lapply(brapi_variantsetsIds,
@@ -645,7 +645,7 @@ server <- function(input, output, session) {
         brapi_calls <<- do.call(rbind,
                                    lapply(brapi_variantsetsIds,
                                           function(a) tryCatch({
-                                            brapi_get_calls(values$maincon, variantDbId = htmltools::urlEncodePath(setDT(brapi_variants)[variantNames==input$SNP,variantDbId]), variantSetDbId = htmltools::urlEncodePath(a), expandHomozygotes = TRUE, sepPhased = "/", sepUnphased = "/", unknownString = "NA")
+                                            brapi_get_calls(values$maincon, variantDbId = htmltools::urlEncodePath(data.table(values$brapi_variants)[variantNames==input$SNP,variantDbId]), variantSetDbId = htmltools::urlEncodePath(a), expandHomozygotes = TRUE, sepPhased = "/", sepUnphased = "/", unknownString = "NA")
                                           },error=function(e) e)
                                    )
         )
