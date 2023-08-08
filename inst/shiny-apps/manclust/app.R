@@ -42,11 +42,11 @@ ui <- fluidPage(theme = shinytheme("flatly"),
              tabPanel("Load data",value = "load",
                       #navlistPanel(widths = c(1,11),"From",
                       h4("Load data from file or from BrAPI endpoint:"),
-                      switchInput("brapiorfile",   label = "Click to choose",
-                                  value = ifelse(brapisupport,TRUE,FALSE),
-                                  onLabel = "BrAPI",
-                                  offLabel = "File",labelWidth = 130, onStatus = "success", offStatus = "info"
-                      ),
+                      #switchInput("brapiorfile",   label = "Click to choose",
+                      #            value = ifelse(brapisupport,TRUE,FALSE),
+                      #            onLabel = "BrAPI",
+                      #            offLabel = "File",labelWidth = 130, onStatus = "success", offStatus = "info"
+                      #),
                       bsCollapse(id="loadfrom", open="From BrAPI",
                         bsCollapsePanel(title = "From file", style="info",
                         #tabPanel("File",
@@ -289,6 +289,9 @@ server <- function(input, output, session) {
         hideTab(inputId = "tabsetId", target = "load")
         hideTab(inputId = "tabsetId", target = "samples")
         hideTab(inputId = "tabsetId", target = "match")
+        brapisupport <<- TRUE
+        #updateSwitchInput(session = session, inputId = "brapiorfile", value = TRUE)
+        updateCollapse(session, id="loadfrom", open="From BrAPI", close = "From file")
       }
 
     }
@@ -307,33 +310,52 @@ server <- function(input, output, session) {
 
 #  "mainbrapiendpoint"
 #  "mainbrapitoken"
-  observeEvent(input$brapiorfile,{
-    if (input$brapiorfile){
-        updateCollapse(session, id="loadfrom", open="From BrAPI", close = "From file")
-        hideTab(inputId = "tabsetId", target = "samples")
-        hideTab(inputId = "tabsetId", target = "match")
-        output$exportData <- renderUI({
-          actionButton(inputId = "pushtobrapi",label = "Save data to BrAPI endpoint", icon = icon(name = "cloud-upload-alt"))
-        })
-        if (!brapisupport){
-        showNotification("To use BrAPI end-points, a list of brapi connections needs to be defined with options(brapi.cons= list(Connection1= brapirv2::brapi_connect(...))) before running the app", type="error",closeButton = TRUE, duration = NULL)
-        #updateSwitchInput(session = session, inputId = "brapiorfile", value = FALSE)
-      }
-    }else{
-      updateCollapse(session, id="loadfrom", open="From file", close = "From BrAPI")
+  #observeEvent(input$brapiorfile,{
+  #  if (input$brapiorfile){
+  #    if(input$loadfrom=="From file"){
+  #      updateCollapse(session, id="loadfrom", open="From BrAPI", close = "From file")
+  #    }
+  #      hideTab(inputId = "tabsetId", target = "samples")
+  #      hideTab(inputId = "tabsetId", target = "match")
+  #      output$exportData <- renderUI({
+  #        actionButton(inputId = "pushtobrapi",label = "Save data to BrAPI endpoint", icon = icon(name = "cloud-upload-alt"))
+  #      })
+  #      if (!brapisupport){
+  #      showNotification("To use BrAPI end-points, a list of brapi connections needs to be defined with options(brapi.cons= list(Connection1= brapirv2::brapi_connect(...))) before running the app", type="error",closeButton = TRUE, duration = NULL)
+  #      #updateSwitchInput(session = session, inputId = "brapiorfile", value = FALSE)
+  #    }
+  #  }else{
+  #    if(input$loadfrom=="From BrAPI"){
+  #      updateCollapse(session, id="loadfrom", open="From file", close = "From BrAPI")
+  #    }
+  #    output$exportData <- renderUI({
+  #      downloadButton('downloadData', 'Download recoded file')
+  #    })
+#
+  #    showTab(inputId = "tabsetId", target = "samples")
+  #    showTab(inputId = "tabsetId", target = "match")
+  #  }
+  #})
+  observeEvent(input$loadfrom,{
+    if(input$loadfrom=="From file"){
+      showTab(inputId = "tabsetId", target = "samples")
+      showTab(inputId = "tabsetId", target = "match")
       output$exportData <- renderUI({
         downloadButton('downloadData', 'Download recoded file')
       })
 
-      showTab(inputId = "tabsetId", target = "samples")
-      showTab(inputId = "tabsetId", target = "match")
     }
-  })
-  observeEvent(input$loadfrom,{
-    if(input$loadfrom=="From file"){
-      updateSwitchInput(session = session, inputId = "brapiorfile", value = FALSE)
-    } else {
-      updateSwitchInput(session = session, inputId = "brapiorfile", value = TRUE)
+    if(input$loadfrom=="From BrAPI"){
+      hideTab(inputId = "tabsetId", target = "samples")
+      hideTab(inputId = "tabsetId", target = "match")
+      output$exportData <- renderUI({
+        actionButton(inputId = "pushtobrapi",label = "Save data to BrAPI endpoint", icon = icon(name = "cloud-upload-alt"))
+      })
+      if (!brapisupport){
+        showNotification("To use BrAPI end-points, a list of brapi connections needs to be defined with options(brapi.cons= list(Connection1= brapirv2::brapi_connect(...))) before running the app", type="error",closeButton = TRUE, duration = NULL)
+        #updateSwitchInput(session = session, inputId = "brapiorfile", value = FALSE)
+      }
+
     }
   })
   observeEvent(input$connect_brapi,{
@@ -427,8 +449,11 @@ server <- function(input, output, session) {
           DF[Call=="-",Call:="Unknown"]
           DF[,Experiment_Name:=input$file1$name]
           values$df_data <- data.frame(DF)
+          values$samplesdfd <- NULL
         }else{
           values$df_data <- data.frame(df) #data.table(df)
+          values$samplesdfd <- NULL
+
         }
       }
     }
@@ -638,7 +663,7 @@ server <- function(input, output, session) {
       updateSelectizeInput(session, "Plate", selected=selplate, choices = sort(unique(temp[,"Plate"])),label = "Plate")
     }
     if (input$SNP!=""){
-      if (input$brapiorfile){
+      if (input$loadfrom=="From BrAPI"){
         brapi_variantsets <<- tryCatch(brapirv2::brapi_get_variantsets(values$maincon, studyDbId =  htmltools::urlEncodePath(values$study_dbid)), error=function(e) e)
         brapi_variantsetsIds <- unique(brapi_variantsets$variantSetDbId)
         brapi_variantsetsIds <- brapi_variantsetsIds[!is.na(brapi_variantsetsIds)]
