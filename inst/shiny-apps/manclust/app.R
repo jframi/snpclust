@@ -263,6 +263,10 @@ server <- function(input, output, session) {
       )
       if (!is.null(parse_GET_param()$mainbrapiprogram)){
         values$mainbrapiprogram <- parse_GET_param()$mainbrapiprogram
+        output$exportData <- renderUI({
+          actionButton(inputId = "pushtobrapi",label = paste0("Save data to ",values$mainbrapiprogram), icon = icon(name = "cloud-upload-alt"))
+        })
+
       }
       if (!is.null(parse_GET_param()$mainbrapistudy)){
         values$study_dbid <- parse_GET_param()$mainbrapistudy
@@ -274,11 +278,12 @@ server <- function(input, output, session) {
         values$brapi_variants <<- do.call(rbind,
                                           lapply(brapi_variantsetsIds,
                                                  function(a) tryCatch({
-                                                   brapirv2::brapi_get_variants(values$maincon, variantSetDbId = htmltools::urlEncodePath(a), pageSize = max_brapi_snp_number)
+                                                   # this is a patch to variantSetDbId field missing in gigwa's get variants response
+                                                   data.table(variantSetDbId=a,brapirv2::brapi_get_variants(values$maincon, variantSetDbId = htmltools::urlEncodePath(a), pageSize = max_brapi_snp_number))
                                                  },error=function(e) e)
                                           )
         )
-        values$snpinfos <- data.table(values$brapi_variants)[,.(SNPID=variantNames, AlleleX=referenceBases, AlleleY=alternateBases)]
+        values$snpinfos <- values$brapi_variants[,.(SNPID=variantNames, AlleleX=referenceBases, AlleleY=alternateBases)]
         #updateSelectizeInput(session, inputId = "SNP", choices = data.frame(label=brapi_variants$variantNames, value=brapi_variants$variantDbId), server = T)
         updateSelectizeInput(session, inputId = "SNP", choices = values$brapi_variants$variantNames, server = T, selected = "")
         if (nrow(values$brapi_variants)==max_brapi_snp_number){
@@ -348,9 +353,15 @@ server <- function(input, output, session) {
     if(input$loadfrom=="From BrAPI"){
       hideTab(inputId = "tabsetId", target = "samples")
       hideTab(inputId = "tabsetId", target = "match")
-      output$exportData <- renderUI({
-        actionButton(inputId = "pushtobrapi",label = "Save data to BrAPI endpoint", icon = icon(name = "cloud-upload-alt"))
-      })
+      if (!is.null(values$mainbrapiprogram)){
+        output$exportData <- renderUI({
+          actionButton(inputId = "pushtobrapi",label = paste0("Save data to ",values$mainbrapiprogram), icon = icon(name = "cloud-upload-alt"))
+        })
+      }else{
+        output$exportData <- renderUI({
+          actionButton(inputId = "pushtobrapi",label = "Save data to BrAPI endpoint", icon = icon(name = "cloud-upload-alt"))
+        })
+      }
       if (!brapisupport){
         showNotification("To use BrAPI end-points, a list of brapi connections needs to be defined with options(brapi.cons= list(Connection1= brapirv2::brapi_connect(...))) before running the app", type="error",closeButton = TRUE, duration = NULL)
         #updateSwitchInput(session = session, inputId = "brapiorfile", value = FALSE)
@@ -387,6 +398,9 @@ server <- function(input, output, session) {
     brapi_studies <<- tryCatch(brapirv2::brapi_get_studies(values$maincon, trialDbId=input$brapi_program),
                                   error=function(e) e)
     updateSelectizeInput(session, "brapi_study",choices = brapi_studies$studyName, selected = NULL)
+    output$exportData <- renderUI({
+      actionButton(inputId = "pushtobrapi",label = paste0("Save data to ",input$brapi_program), icon = icon(name = "cloud-upload-alt"))
+    })
     }
   })
 
@@ -401,11 +415,12 @@ server <- function(input, output, session) {
       values$brapi_variants <<- do.call(rbind,
                                  lapply(brapi_variantsetsIds,
                                         function(a) tryCatch({
-                                          brapirv2::brapi_get_variants(values$maincon, variantSetDbId = htmltools::urlEncodePath(a), pageSize = max_brapi_snp_number)
+                                          # this is a patch to variantSetDbId field missing in gigwa's get variants response
+                                          data.table(variantSetDbId=a,brapirv2::brapi_get_variants(values$maincon, variantSetDbId = htmltools::urlEncodePath(a), pageSize = max_brapi_snp_number))
                                           },error=function(e) e)
                                  )
       )
-      values$snpinfos <- data.table(values$brapi_variants)[,.(SNPID=variantNames, AlleleX=referenceBases, AlleleY=alternateBases)]
+      values$snpinfos <- values$brapi_variants[,.(SNPID=variantNames, AlleleX=referenceBases, AlleleY=alternateBases)]
       #updateSelectizeInput(session, inputId = "SNP", choices = data.frame(label=brapi_variants$variantNames, value=brapi_variants$variantDbId), server = T)
       updateSelectizeInput(session, inputId = "SNP", choices = values$brapi_variants$variantNames, server = T, selected = "")
       if (nrow(values$brapi_variants)==max_brapi_snp_number){
@@ -670,7 +685,10 @@ server <- function(input, output, session) {
         brapi_calls <<- do.call(rbind,
                                    lapply(brapi_variantsetsIds,
                                           function(a) tryCatch({
-                                            brapi_get_calls(values$maincon, variantDbId = htmltools::urlEncodePath(data.table(values$brapi_variants)[variantNames==input$SNP,variantDbId]), variantSetDbId = htmltools::urlEncodePath(a), expandHomozygotes = TRUE, sepPhased = "/", sepUnphased = "/", unknownString = "NA")
+                                            variants <- values$brapi_variants[variantNames==input$SNP & variantSetDbId==a,variantDbId]
+                                            if (length(variants)>0){
+                                              brapi_get_calls(values$maincon, variantDbId = htmltools::urlEncodePath(variants), variantSetDbId = htmltools::urlEncodePath(a), expandHomozygotes = TRUE, sepPhased = "/", sepUnphased = "/", unknownString = "NA")
+                                            }
                                           },error=function(e) e)
                                    )
         )
