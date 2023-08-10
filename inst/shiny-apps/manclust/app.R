@@ -273,10 +273,10 @@ server <- function(input, output, session) {
       }
       if (!is.null( parse_GET_param()$mainapiURL) & !is.null(parse_GET_param()$mainbrapiprogram) & !is.null(parse_GET_param()$mainbrapistudy)){
         values$brapi_variantsets <<- tryCatch(brapirv2::brapi_get_variantsets(values$maincon, studyDbId =  htmltools::urlEncodePath(values$study_dbid)), error=function(e) e)
-        brapi_variantsetsIds <- unique(values$brapi_variantsets$variantSetDbId)
+        values$brapi_variantsetsIds <- unique(values$brapi_variantsets$variantSetDbId)
         values$brapi_variantsetsIds <- values$brapi_variantsetsIds[!is.na(values$brapi_variantsetsIds)]
         values$brapi_variants <<- do.call(rbind,
-                                          lapply(brapi_variantsetsIds,
+                                          lapply(values$brapi_variantsetsIds,
                                                  function(a) tryCatch({
                                                    # this is a patch to variantSetDbId field missing in gigwa's get variants response
                                                    data.table(variantSetDbId=a,brapirv2::brapi_get_variants(values$maincon, variantSetDbId = htmltools::urlEncodePath(a), pageSize = max_brapi_snp_number))
@@ -410,10 +410,10 @@ server <- function(input, output, session) {
       #values$maincon$token <<- input$mainbrapitoken
       values$study_dbid <- brapi_studies[brapi_studies$studyName==input$brapi_study, "studyDbId"]
       values$brapi_variantsets <<- tryCatch(brapirv2::brapi_get_variantsets(values$maincon, studyDbId =  htmltools::urlEncodePath(values$study_dbid)), error=function(e) e)
-      brapi_variantsetsIds <- unique(values$brapi_variantsets$variantSetDbId)
+      values$brapi_variantsetsIds <- unique(values$brapi_variantsets$variantSetDbId)
       values$brapi_variantsetsIds <- values$brapi_variantsetsIds[!is.na(values$brapi_variantsetsIds)]
       values$brapi_variants <<- do.call(rbind,
-                                 lapply(brapi_variantsetsIds,
+                                 lapply(values$brapi_variantsetsIds,
                                         function(a) tryCatch({
                                           # this is a patch to variantSetDbId field missing in gigwa's get variants response
                                           data.table(variantSetDbId=a,brapirv2::brapi_get_variants(values$maincon, variantSetDbId = htmltools::urlEncodePath(a), pageSize = max_brapi_snp_number))
