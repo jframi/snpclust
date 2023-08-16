@@ -697,8 +697,8 @@ server <- function(input, output, session) {
         if (any(colnames(brapi_calls)=="genotypeMetadata.fieldAbbreviation")){
           brapi_calls <- brapi_calls[genotypeMetadata.fieldAbbreviation=="FI" & !is.na(genotypeMetadata.fieldValue)]
           if (nrow(brapi_calls)>0){
-            cs <- brapi_post_search_callsets(values$maincon, callSetDbIds = brapi_calls$callSetDbId)
-            sps <- brapi_post_search_samples(values$maincon, sampleDbIds = cs$sampleDbId)
+            cs <- suppressMessages(brapi_post_search_callsets(values$maincon, callSetDbIds = brapi_calls$callSetDbId))
+            sps <- suppressMessages(brapi_post_search_samples(values$maincon, sampleDbIds = cs$sampleDbId))
             setDT(cs)
             setDT(sps)
             values$samplesdfd <- sps[cs, on=.(sampleDbId)]
