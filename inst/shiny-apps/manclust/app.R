@@ -6,10 +6,15 @@ library(data.table)
 library(DT)
 library(brapirv2)
 library(shinyWidgets)
+library(httr)
 
 options(warn =-1)
 options(shiny.maxRequestSize=300*1024^2)
 max_brapi_snp_number <- 10000
+
+sepPhased <- "/"
+sepUnphased <- "/"
+unknownString <- "NA"
 
 if (is.null(options()$brapi.cons)) {
   brapisupport <-FALSE
@@ -694,7 +699,7 @@ server <- function(input, output, session) {
                                           function(a) tryCatch({
                                             variants <- values$brapi_variants[variantNames==input$SNP & variantSetDbId==a,variantDbId]
                                             if (length(variants)>0){
-                                              brapi_get_calls(values$maincon, variantDbId = htmltools::urlEncodePath(variants), variantSetDbId = htmltools::urlEncodePath(a), expandHomozygotes = TRUE, sepPhased = "/", sepUnphased = "/", unknownString = "NA")
+                                              brapi_get_calls(values$maincon, variantDbId = htmltools::urlEncodePath(variants), variantSetDbId = htmltools::urlEncodePath(a), expandHomozygotes = TRUE, sepPhased = sepPhased, sepUnphased = sepUnphased, unknownString = unknownString)
                                             }
                                           },error=function(e) e)
                                    )
@@ -1031,12 +1036,54 @@ server <- function(input, output, session) {
       }
       }
   })
+
   observeEvent(input$pushtobrapi,{
-    showModal(modalDialog(
-      "Push of data back to BrAPI endpoint is not yet implemented",
-      easyClose = TRUE
-    ))
+    brapicon <- values$maincon
+    df <- values$newdf
+    df <- df[df$NewCall != 'Unknown', ]
+    
+    existingBrapiData <- merge(unique(brapi_calls[,.(callSetDbId, genotypeValue , variantDbId ,variantName ,variantSetDbId)]),
+                               brapi_calls[,list(genotypeMetadata=list(data.table(dataType=genotypeMetadata.dataType,
+                                                                                  fieldAbbreviation=genotypeMetadata.fieldAbbreviation,
+                                                                                  fieldName=genotypeMetadata.fieldName,
+                                                                                  fieldValue=genotypeMetadata.fieldValue))),callSetDbId]) 
+    dataToPut <- merge(existingBrapiData, data.table(df)[,.(SubjectID, NewCall)], by.x = "callSetDbId", by.y = "SubjectID")
+    dataToPut[,genotypeValue:=NULL]
+    setnames(dataToPut,old = "NewCall",new = "genotypeValue")
+    
+    body <- list(
+      expandHomozygotes=jsonlite::unbox("true"),
+      sepPhased=jsonlite::unbox(sepPhased),
+      sepUnphased=jsonlite::unbox(sepUnphased),
+      unknownString=jsonlite::unbox(unknownString),
+      data=dataToPut
+    )
+    
+    #print(jsonlite::toJSON(dataToPut))
+
+    jsonBody <- jsonlite::toJSON(body)
+    
+    brapiPutCallsUrl <- paste0(brapicon$protocol,brapicon$db)
+    if (brapicon$port != 80) {
+      brapiPutCallsUrl <- paste0(brapiPutCallsUrl, ":",brapicon$port)
+    }
+    brapiPutCallsUrl <- paste0(brapiPutCallsUrl, "/", brapicon$apipath, "/brapi/v2/calls")
+    #TODO update and use brapirv2
+    res <- PUT(brapiPutCallsUrl, body = jsonBody, encode = "json", content_type_json(),
+               add_headers(Authorization=paste0("Bearer ", brapicon$token)))
+    
+    if (res$status_code == 200) {
+      showNotification("Calls updated", type="message",closeButton = TRUE, duration = 10)
+    } else {
+      showNotification("Error when pushing new calls", type="error",closeButton = TRUE, duration = 10)
+    }
+    
+    # showModal(modalDialog(
+    #   "Push of data back to BrAPI endpoint is not yet implemented",
+    #   easyClose = TRUE
+    # ))
   })
+  
   output$downloadData <- downloadHandler(
     filename = function() {
       paste(input$file1$name, '.recoded.txt', sep='')
