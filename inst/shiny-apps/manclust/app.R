@@ -12,6 +12,10 @@ options(warn =-1)
 options(shiny.maxRequestSize=300*1024^2)
 max_brapi_snp_number <- 10000
 
+sepPhased <- "/"
+sepUnphased <- "/"
+unknownString <- "NA"
+
 if (is.null(options()$brapi.cons)) {
   brapisupport <-FALSE
   brapi_connections <- NULL
@@ -688,7 +692,7 @@ server <- function(input, output, session) {
                                           function(a) tryCatch({
                                             variants <- values$brapi_variants[variantNames==input$SNP & variantSetDbId==a,variantDbId]
                                             if (length(variants)>0){
-                                              brapi_get_calls(values$maincon, variantDbId = htmltools::urlEncodePath(variants), variantSetDbId = htmltools::urlEncodePath(a), expandHomozygotes = TRUE, sepPhased = "/", sepUnphased = "/", unknownString = "NA")
+                                              brapi_get_calls(values$maincon, variantDbId = htmltools::urlEncodePath(variants), variantSetDbId = htmltools::urlEncodePath(a), expandHomozygotes = TRUE, sepPhased = sepPhased, sepUnphased = sepUnphased, unknownString = unknownString)
                                             }
                                           },error=function(e) e)
                                    )
@@ -1040,10 +1044,17 @@ server <- function(input, output, session) {
     dataToPut[,genotypeValue:=NULL]
     setnames(dataToPut,old = "NewCall",new = "genotypeValue")
     
-    #print(jsonlite::toJSON(dataToPut))
-    #TODO manage missing data
+    body <- list(
+      expandHomozygotes=jsonlite::unbox("true"),
+      sepPhased=jsonlite::unbox(sepPhased),
+      sepUnphased=jsonlite::unbox(sepUnphased),
+      unknownString=jsonlite::unbox(unknownString),
+      data=dataToPut
+    )
     
-    body <- paste0('{"data":', jsonlite::toJSON(dataToPut), '}')
+    #print(jsonlite::toJSON(dataToPut))
+
+    jsonBody <- jsonlite::toJSON(body)
     
     brapiPutCallsUrl <- paste0(brapicon$protocol,brapicon$db)
     if (brapicon$port != 80) {
@@ -1051,9 +1062,8 @@ server <- function(input, output, session) {
     }
     brapiPutCallsUrl <- paste0(brapiPutCallsUrl, "/", brapicon$apipath, "/brapi/v2/calls")
     #TODO update and use brapirv2
-    res <- PUT(brapiPutCallsUrl, body = body, encode = "json", content_type_json(),
+    res <- PUT(brapiPutCallsUrl, body = jsonBody, encode = "json", content_type_json(),
                add_headers(Authorization=paste0("Bearer ", brapicon$token)))
-    
     
     if (res$status_code == 200) {
       showNotification("Calls updated", type="message",closeButton = TRUE, duration = 10)
