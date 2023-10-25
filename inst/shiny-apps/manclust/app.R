@@ -655,19 +655,26 @@ server <- function(input, output, session) {
   observeEvent(input$Plate,{
     temp<-values$newdf
     selSNP<-input$SNP
-    if (!is.null(input$Plate)){
-      #updateSelectizeInput(session, "SNP",selected=selSNP , choices = unique(temp[temp$Plate%in%input$Plate,"SNP"]),label = paste("SNP (Plates:",paste(input$Plate, collapse = ","),")",sep=""))
+    if (input$loadfrom=="From BrAPI"){
+
+    } else {
       if (!is.null(input$Plate)){
-        values$toplot<-values$newdf[values$newdf$Plate%in%input$Plate,]
+        updateSelectizeInput(session, "SNP",selected=selSNP , choices = unique(temp[temp$Plate%in%input$Plate,"SNP"]),label = paste("SNP (Plates:",paste(input$Plate, collapse = ","),")",sep=""))
+        #if (!is.null(input$Plate)){
+        #  values$toplot<-values$newdf[values$newdf$Plate%in%input$Plate,]
+        #}
+        if (input$SNP!=""){
+          values$toplot<-values$newdf[values$newdf$SNP==input$SNP & values$newdf$Plate%in%input$Plate,]
+        }
+      } else{
+        updateSelectizeInput(session, "SNP",selected=selSNP , choices = unique(temp[,"SNP"]),label = "SNP")
+        updateSelectizeInput(session, "Plate" , choices = unique(temp[,"Plate"]))
+        if (input$SNP!=""){
+          values$toplot<-values$newdf[values$newdf$SNP==input$SNP,]
+        }
       }
-      #if (input$SNP!=""){
-      #  values$toplot<-values$newdf[values$newdf$SNP==input$SNP,]
-      #}
-    } else{
-      #updateSelectizeInput(session, "SNP",selected=selSNP , choices = unique(temp[,"SNP"]),label = "SNP")
-      #updateSelectizeInput(session, "Plate" , choices = unique(temp[,"Plate"]))
     }
-  })
+  },ignoreNULL  = FALSE)
 
   observeEvent(input$SNP,{
     temp<-values$newdf
@@ -713,7 +720,7 @@ server <- function(input, output, session) {
               brapi_calls[, Plate:=NA]
               brapi_calls$Plate <- brapi_calls[[platecol]]
             } else {
-              brapi_calls[, Plate:="Unknown"]
+              brapi_calls[, Plate:=NA]
             }
             brapi_calls[, variantName:=input$SNP]
             brapi_calls[, callSetName:=callSetDbId]
