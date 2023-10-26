@@ -228,7 +228,10 @@ server <- function(input, output, session) {
                            bms_token=NULL,
                            brapi_endpoint_name=NULL,
                            mainbrapiprogram=NULL,
-                           study_dbid=NULL)
+                           study_dbid=NULL,
+                           currentSNP=NULL,
+                           targetSNP=NULL,
+                           confirmchangeSNP="none")
   scorebts <- reactiveValues()
   scorebts$ui <- list()
   o <- reactiveVal(list())
@@ -681,97 +684,122 @@ server <- function(input, output, session) {
     }
   },ignoreNULL  = FALSE)
 
-  observeEvent(input$SNP,{
-    temp<-values$newdf
-    selplate<-input$Plate
-    if (input$SNP!=""){
-      updateSelectizeInput(session, "Plate", selected=selplate, choices = sort(unique(temp[temp$SNP==input$SNP,"Plate"])),label = paste("Plate (SNP:",input$SNP,")",sep=""))
-    } else{
-      updateSelectizeInput(session, "Plate", selected=selplate, choices = sort(unique(temp[,"Plate"])),label = "Plate")
-    }
-    if (input$SNP!=""){
-      if (input$loadfrom=="From BrAPI"){
-        brapi_variantsets <<- tryCatch(brapirv2::brapi_get_variantsets(values$maincon, studyDbId =  htmltools::urlEncodePath(values$study_dbid)), error=function(e) e)
-        brapi_variantsetsIds <- unique(brapi_variantsets$variantSetDbId)
-        brapi_variantsetsIds <- brapi_variantsetsIds[!is.na(brapi_variantsetsIds)]
-        brapi_calls <<- do.call(rbind,
-                                   lapply(brapi_variantsetsIds,
-                                          function(a) tryCatch({
-                                            variants <- values$brapi_variants[variantNames==input$SNP & variantSetDbId==a,variantDbId]
-                                            if (length(variants)>0){
-                                              brapi_get_calls(values$maincon, variantDbId = htmltools::urlEncodePath(variants), variantSetDbId = htmltools::urlEncodePath(a), expandHomozygotes = TRUE, sepPhased = sepPhased, sepUnphased = sepUnphased, unknownString = unknownString)
-                                            }
-                                          },error=function(e) e)
-                                   )
-        )
-        setDT(brapi_calls)
-        #brapi_calls[nchar(genotype.values)==1 & genotype.values%in%c("A","C","G","T","N","-"), genotype.values:=paste0(genotype.values,"/",genotype.values)]
-        if (any(colnames(brapi_calls)=="genotypeMetadata.fieldAbbreviation")){
-          brapi_calls <- brapi_calls[genotypeMetadata.fieldAbbreviation=="FI" & !is.na(genotypeMetadata.fieldValue)]
-          if (nrow(brapi_calls)>0){
-            cs <- suppressMessages(brapi_post_search_callsets(values$maincon, callSetDbIds = brapi_calls$callSetDbId))
-            sps <- suppressMessages(brapi_post_search_samples(values$maincon, sampleDbIds = cs$sampleDbId))
-            setDT(cs)
-            setDT(sps)
-            values$samplesdfd <- sps[cs, on=.(sampleDbId)]
-            brapi_calls <- cbind(brapi_calls, brapi_calls[, tstrsplit(genotypeMetadata.fieldValue, split=",", names = c("X.Fluor","Y.Fluor"))])
-            brapi_calls[, X.Fluor:=as.numeric(X.Fluor)]
-            brapi_calls[, Y.Fluor:=as.numeric(Y.Fluor)]
-            brapi_calls[, snpclustId:=1:.N]
-            brapi_calls[, NewCall:="Unknown"]
-            if (any(grepl("[M,m]aster[[:blank:]]*[P,p]late",colnames(values$samplesdfd)))){
-              platecol <- grep("[M,m]aster[[:blank:]]*[P,p]late",colnames(values$samplesdfd), value = T)[1]
-              brapi_calls <- values$samplesdfd[,c("callSetDbId",platecol), with=FALSE][brapi_calls, on=.(callSetDbId)]
-              brapi_calls[, Plate:=NA]
-              brapi_calls$Plate <- brapi_calls[[platecol]]
-            } else {
-              brapi_calls[, Plate:=NA]
-            }
-            brapi_calls[, variantName:=input$SNP]
-            brapi_calls[, callSetName:=callSetDbId]
-            #brapi_calls[,genotypeValue:=unlist(genotypeValue)]
-            setnames(brapi_calls,
-                     old=c("variantName",
-                           "genotypeValue",
-                           "callSetDbId",
-                           "callSetName"),
-                     new=c("SNP",
-                           "Call",
-                           "SubjectID",
-                           "SampName"))
-          values$newdf <- data.frame(brapi_calls[,.(SNP, Call,snpclustId, SubjectID, SampName, X.Fluor, Y.Fluor, NewCall, Plate)])
-          updateSelectizeInput(session = session, inputId = "Plate", choices = unique(values$newdf$Plate))
-          }
-        }else{
-          values$newdf <- data.frame(SNP="", Call="",snpclustId="", SubjectID="", SampName="", X.Fluor=0, Y.Fluor=0, NewCall="", Plate="")
-        }
-      }
-      if (!is.null(values$newdf)){
-        values$toplot<-values$newdf
-        if (!is.null(input$Plate)){
-          values$toplot<-values$toplot[values$toplot$Plate%in%input$Plate,]
+  observeEvent(input$confirmchangeSNP, {
+    values$confirmchangeSNP <- "yes"
+    updateSelectizeInput(session = session, inputId = "SNP", selected = values$targetSNP)
+    removeModal()
+  })
+  observeEvent(input$cancelchangeSNP, {
+    values$confirmchangeSNP <- "cancel"
+    updateSelectizeInput(session = session, inputId = "SNP", selected = values$currentSNP)
+    removeModal()
+  })
+
+  observeEvent(c(input$SNP,input$confirmchangeSNP),{
+    if (values$confirmchangeSNP=="none" & input$loadfrom=="From BrAPI" & !all(values$newdf[,"NewCall"]=="Unknown") & any(!values$newdf[,"Call"]==values$newdf[,"NewCall"])){
+      values$targetSNP <- input$SNP
+      showModal(modalDialog(
+        "Some SNP calls have been changed. Changing to a different SNP without saving will discard changes. Are you sure you want to proceed?",
+          footer = tagList(actionButton("confirmchangeSNP", "Yes"),
+                           actionButton("cancelchangeSNP", "Cancel")
+          )
+      ))
+    } else {
+      if (values$confirmchangeSNP!="cancel"){
+        temp<-values$newdf
+        selplate<-input$Plate
+        values$currentSNP <- input$SNP
+        if (input$SNP!=""){
+          updateSelectizeInput(session, "Plate", selected=selplate, choices = sort(unique(temp[temp$SNP==input$SNP,"Plate"])),label = paste("Plate (SNP:",input$SNP,")",sep=""))
+        } else{
+          updateSelectizeInput(session, "Plate", selected=selplate, choices = sort(unique(temp[,"Plate"])),label = "Plate")
         }
         if (input$SNP!=""){
-          values$toplot<-values$toplot[values$toplot$SNP==input$SNP,]
-        }
-          calls <- unique(values$toplot$Call)
-          calls <- calls[!is.na(calls)]
-          values$cols <- calls
-          names(values$cols) <- calls
-          values$cols[gsub("[:/|]","",calls)==paste(rep(values$snpinfos[SNPID==input$SNP, AlleleX],2),collapse = "")] <- "#DC143CFF"
-          values$cols[gsub("[:/|]","",calls)==paste(rep(values$snpinfos[SNPID==input$SNP, AlleleY],2),collapse = "")] <- "#3CB371FF"
-          values$cols[gsub("[:/|]","",calls)==paste(c(values$snpinfos[SNPID==input$SNP, AlleleY],values$snpinfos[SNPID==input$SNP, AlleleX]),collapse = "")] <- "#00CCC5FF"
-          values$cols[gsub("[:/|]","",calls)==paste(c(values$snpinfos[SNPID==input$SNP, AlleleX],values$snpinfos[SNPID==input$SNP, AlleleY]),collapse = "")] <- "#00CCC5FF"
-          values$cols[gsub("[:/|]","",calls)=="NTC"] <- "#E54FFF"
-          values$cols[!grepl("^#([A-Fa-f0-9]{8}|[A-Fa-f0-9]{6})$",values$cols)] <- "#FF7F50FF"
-          guess_seps <- gsub("^.*([:/|]).*$","\\1",na.omit(grep("[[:punct:]]",calls, value = T)))
-          guess_sep <- unique(guess_seps)[which.max(table(guess_seps))]
+          if (input$loadfrom=="From BrAPI"){
+            brapi_variantsets <<- tryCatch(brapirv2::brapi_get_variantsets(values$maincon, studyDbId =  htmltools::urlEncodePath(values$study_dbid)), error=function(e) e)
+            brapi_variantsetsIds <- unique(brapi_variantsets$variantSetDbId)
+            brapi_variantsetsIds <- brapi_variantsetsIds[!is.na(brapi_variantsetsIds)]
+            brapi_calls <<- do.call(rbind,
+                                    lapply(brapi_variantsetsIds,
+                                           function(a) tryCatch({
+                                             variants <- values$brapi_variants[variantNames==input$SNP & variantSetDbId==a,variantDbId]
+                                             if (length(variants)>0){
+                                               brapi_get_calls(values$maincon, variantDbId = htmltools::urlEncodePath(variants), variantSetDbId = htmltools::urlEncodePath(a), expandHomozygotes = TRUE, sepPhased = sepPhased, sepUnphased = sepUnphased, unknownString = unknownString)
+                                             }
+                                           },error=function(e) e)
+                                    )
+            )
+            setDT(brapi_calls)
+            #brapi_calls[nchar(genotype.values)==1 & genotype.values%in%c("A","C","G","T","N","-"), genotype.values:=paste0(genotype.values,"/",genotype.values)]
+            if (any(colnames(brapi_calls)=="genotypeMetadata.fieldAbbreviation")){
+              brapi_calls <- brapi_calls[genotypeMetadata.fieldAbbreviation=="FI" & !is.na(genotypeMetadata.fieldValue)]
+              if (nrow(brapi_calls)>0){
+                cs <- suppressMessages(brapi_post_search_callsets(values$maincon, callSetDbIds = brapi_calls$callSetDbId))
+                sps <- suppressMessages(brapi_post_search_samples(values$maincon, sampleDbIds = cs$sampleDbId))
+                setDT(cs)
+                setDT(sps)
+                values$samplesdfd <- sps[cs, on=.(sampleDbId)]
+                brapi_calls <- cbind(brapi_calls, brapi_calls[, tstrsplit(genotypeMetadata.fieldValue, split=",", names = c("X.Fluor","Y.Fluor"))])
+                brapi_calls[, X.Fluor:=as.numeric(X.Fluor)]
+                brapi_calls[, Y.Fluor:=as.numeric(Y.Fluor)]
+                brapi_calls[, snpclustId:=1:.N]
+                brapi_calls[, NewCall:="Unknown"]
+                if (any(grepl("[M,m]aster[[:blank:]]*[P,p]late",colnames(values$samplesdfd)))){
+                  platecol <- grep("[M,m]aster[[:blank:]]*[P,p]late",colnames(values$samplesdfd), value = T)[1]
+                  brapi_calls <- values$samplesdfd[,c("callSetDbId",platecol), with=FALSE][brapi_calls, on=.(callSetDbId)]
+                  brapi_calls[, Plate:=NA]
+                  brapi_calls$Plate <- brapi_calls[[platecol]]
+                } else {
+                  brapi_calls[, Plate:=NA]
+                }
+                brapi_calls[, variantName:=input$SNP]
+                brapi_calls[, callSetName:=callSetDbId]
+                #brapi_calls[,genotypeValue:=unlist(genotypeValue)]
+                setnames(brapi_calls,
+                         old=c("variantName",
+                               "genotypeValue",
+                               "callSetDbId",
+                               "callSetName"),
+                         new=c("SNP",
+                               "Call",
+                               "SubjectID",
+                               "SampName"))
+                values$newdf <- data.frame(brapi_calls[,.(SNP, Call,snpclustId, SubjectID, SampName, X.Fluor, Y.Fluor, NewCall, Plate)])
+                updateSelectizeInput(session = session, inputId = "Plate", choices = unique(values$newdf$Plate))
+              }
+            }else{
+              values$newdf <- data.frame(SNP="", Call="",snpclustId="", SubjectID="", SampName="", X.Fluor=0, Y.Fluor=0, NewCall="", Plate="")
+            }
+          }
+          if (!is.null(values$newdf)){
+            values$toplot<-values$newdf
+            if (!is.null(input$Plate)){
+              values$toplot<-values$toplot[values$toplot$Plate%in%input$Plate,]
+            }
+            if (input$SNP!=""){
+              values$toplot<-values$toplot[values$toplot$SNP==input$SNP,]
+            }
+            calls <- unique(values$toplot$Call)
+            calls <- calls[!is.na(calls)]
+            values$cols <- calls
+            names(values$cols) <- calls
+            values$cols[gsub("[:/|]","",calls)==paste(rep(values$snpinfos[SNPID==input$SNP, AlleleX],2),collapse = "")] <- "#3CB371FF"
+            values$cols[gsub("[:/|]","",calls)==paste(rep(values$snpinfos[SNPID==input$SNP, AlleleY],2),collapse = "")] <- "#DC143CFF"
+            values$cols[gsub("[:/|]","",calls)==paste(c(values$snpinfos[SNPID==input$SNP, AlleleY],values$snpinfos[SNPID==input$SNP, AlleleX]),collapse = "")] <- "#00CCC5FF"
+            values$cols[gsub("[:/|]","",calls)==paste(c(values$snpinfos[SNPID==input$SNP, AlleleX],values$snpinfos[SNPID==input$SNP, AlleleY]),collapse = "")] <- "#00CCC5FF"
+            values$cols[gsub("[:/|]","",calls)=="NTC"] <- "#E54FFF"
+            values$cols[!grepl("^#([A-Fa-f0-9]{8}|[A-Fa-f0-9]{6})$",values$cols)] <- "#FF7F50FF"
+            guess_seps <- gsub("^.*([:/|]).*$","\\1",na.omit(grep("[[:punct:]]",calls, value = T)))
+            guess_sep <- unique(guess_seps)[which.max(table(guess_seps))]
 
-#$$$
-          updateSelectizeInput(session = session, inputId = "allele_sep", selected = guess_sep)
-          updateSelectizeInput(session = session, inputId = "snp_x_allele", selected = values$snpinfos[SNPID==input$SNP, AlleleX])
-          updateSelectizeInput(session = session, inputId = "snp_y_allele", selected = values$snpinfos[SNPID==input$SNP, AlleleY])
+            #$$$
+            updateSelectizeInput(session = session, inputId = "allele_sep", selected = guess_sep)
+            updateSelectizeInput(session = session, inputId = "snp_x_allele", selected = values$snpinfos[SNPID==input$SNP, AlleleX])
+            updateSelectizeInput(session = session, inputId = "snp_y_allele", selected = values$snpinfos[SNPID==input$SNP, AlleleY])
+          }
+        }
       }
+      values$confirmchangeSNP <- "none"
     }
     })
 
@@ -792,14 +820,14 @@ server <- function(input, output, session) {
       values$alls <- c(input$snp_x_allele, input$snp_y_allele)
       n <- input$ploidy
       #values$genots <- unlist(lapply(0:n, function(a) paste(c(rep(values$alls[1],a), rep(values$alls[2],n-a)), collapse = input$allele_sep)))
-      values$genots <- unlist(lapply(n:0, function(a) paste(c(rep(values$alls[2],a), rep(values$alls[1],n-a)), collapse = "")))
+      values$genots <- unlist(lapply(n:0, function(a) paste(c(rep(values$alls[1],a), rep(values$alls[2],n-a)), collapse = "")))
       isolate({
         values$recols <- c("#3CB371FF", colorRampPalette(c("#00CCC5", "#4E00D6"))(n-1), "#DC143CFF")
         #names(values$recols) <- values$genots
         names(values$recols) <- unlist(lapply(strsplit(values$genots, split = ""), function(a) paste(a,collapse=input$allele_sep)))
-        values$recols <- c(values$recols, NTC="#E54FFF")
+        values$recols <- c(values$recols, NTC="#E54FFF", Unknown="grey40")
       })
-      scorebts$ui <- lapply(values$genots, function(g) list(actionButton(inputId = paste0("scoreb",gsub(input$allele_sep,"",g)),
+      scorebts$ui <- lapply(rev(values$genots), function(g) list(actionButton(inputId = paste0("scoreb",gsub(input$allele_sep,"",g)),
                                                                          label = paste0("Score as ",paste(unlist(strsplit(g, split = "")), collapse = input$allele_sep)),
                                                                          style=paste0("color: #fff; background-color: ",values$recols[[which(values$genots==g)]],"; border-color: ",values$recols[[which(values$genots==g)]]))))
       output$score_buttons <- renderUI({scorebts$ui})
@@ -1041,16 +1069,16 @@ server <- function(input, output, session) {
     brapicon <- values$maincon
     df <- values$newdf
     df <- df[df$NewCall != 'Unknown', ]
-    
+
     existingBrapiData <- merge(unique(brapi_calls[,.(callSetDbId, genotypeValue , variantDbId ,variantName ,variantSetDbId)]),
                                brapi_calls[,list(genotypeMetadata=list(data.table(dataType=genotypeMetadata.dataType,
                                                                                   fieldAbbreviation=genotypeMetadata.fieldAbbreviation,
                                                                                   fieldName=genotypeMetadata.fieldName,
-                                                                                  fieldValue=genotypeMetadata.fieldValue))),callSetDbId]) 
+                                                                                  fieldValue=genotypeMetadata.fieldValue))),callSetDbId])
     dataToPut <- merge(existingBrapiData, data.table(df)[,.(SubjectID, NewCall)], by.x = "callSetDbId", by.y = "SubjectID")
     dataToPut[,genotypeValue:=NULL]
     setnames(dataToPut,old = "NewCall",new = "genotypeValue")
-    
+
     body <- list(
       expandHomozygotes=jsonlite::unbox("true"),
       sepPhased=jsonlite::unbox(sepPhased),
@@ -1058,11 +1086,11 @@ server <- function(input, output, session) {
       unknownString=jsonlite::unbox(unknownString),
       data=dataToPut
     )
-    
+
     #print(jsonlite::toJSON(dataToPut))
 
     jsonBody <- jsonlite::toJSON(body)
-    
+
     brapiPutCallsUrl <- paste0(brapicon$protocol,brapicon$db)
     if (brapicon$port != 80) {
       brapiPutCallsUrl <- paste0(brapiPutCallsUrl, ":",brapicon$port)
@@ -1071,19 +1099,20 @@ server <- function(input, output, session) {
     #TODO update and use brapirv2
     res <- PUT(brapiPutCallsUrl, body = jsonBody, encode = "json", content_type_json(),
                add_headers(Authorization=paste0("Bearer ", brapicon$token)))
-    
+
     if (res$status_code == 200) {
       showNotification("Calls updated", type="message",closeButton = TRUE, duration = 10)
+      values$confirmchangeSNP <- "yes"
     } else {
       showNotification("Error when pushing new calls", type="error",closeButton = TRUE, duration = 10)
     }
-    
+
     # showModal(modalDialog(
     #   "Push of data back to BrAPI endpoint is not yet implemented",
     #   easyClose = TRUE
     # ))
   })
-  
+
   output$downloadData <- downloadHandler(
     filename = function() {
       paste(input$file1$name, '.recoded.txt', sep='')
