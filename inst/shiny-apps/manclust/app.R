@@ -131,7 +131,7 @@ ui <- fluidPage(theme = shinytheme("flatly"),
                                actionButton("fetch_samples","Fetch samples information")
                                ),
                         column(9,dataTableOutput("samples_info",height = "600px"),
-                               div(style="display: inline-block;vertical-align:top;",actionButton("special_samples","Toggle selected as special samples")),
+                               #div(style="display: inline-block;vertical-align:top;",actionButton("special_samples","Toggle selected as special samples")),
                                div(style="display: inline-block;vertical-align:top;",actionButton("update_samples","Update samples information")),
                                htmlOutput("update_samp_res")),
 #                        column(2),
@@ -202,7 +202,8 @@ ui <- fluidPage(theme = shinytheme("flatly"),
                           bsCollapse(id="samples_selection", open=NULL,
                                      bsCollapsePanel(title = "Highlight samples", style="primary",
                                         dataTableOutput('samples', height = 80)
-                                     ))
+                                     )),
+                          actionButton(inputId = "samples.clearsel", label = "Unselect all")
                         )
                       )
              ))
@@ -537,18 +538,18 @@ server <- function(input, output, session) {
         setDT(samps)
         samples <- unique(samps[,.(sampleDbId,sampleName,germplasmDbId)])
     }
-      dfd<-unique(data.table(values$df_data)[,.(SubjectID, Found=FALSE,Special=FALSE)])
+      dfd<-unique(data.table(values$df_data)[,.(SubjectID, Found=FALSE)])
       samplesdfd<-samples[dfd, on=c(sampleDbId="SubjectID")]
       samplesdfd[!is.na(germplasmDbId), Found:=TRUE]
       output$update_samp_res = renderText({paste("<span style=\"color:green\">",nrow(samplesdfd[!is.na(germplasmDbId)]),"samples found out of ",nrow(samplesdfd)," samples. Use the 'Found' column to identify missing samples</span>")})
       values$samplesdfd <- samplesdfd
   })
 
-  observeEvent(input$special_samples,{
-    samplesdfd<-copy(values$samplesdfd)
-    samplesdfd[input$samples_info_rows_selected, Special:=!Special]
-    values$samplesdfd<-samplesdfd
-  })
+  #observeEvent(input$special_samples,{
+  #  samplesdfd<-copy(values$samplesdfd)
+  #  samplesdfd[input$samples_info_rows_selected, Special:=!Special]
+  #  values$samplesdfd<-samplesdfd
+  #})
   observe({
     if(!is.null(values$samplesdfd)){
       output$samples <- DT::renderDataTable(DT::datatable(values$samplesdfd,
@@ -575,17 +576,16 @@ server <- function(input, output, session) {
                                                             #                                      table.rows({ search: 'applied'}).deselect();}")))
                                                             )
                                                           ), server = FALSE)
+      dtproxy <<- dataTableProxy('samples')
     }
   })
   observeEvent(input$update_samples,{
     dfd <- data.table(values$df_data)
-    dfd <- values$samplesdfd[,.(sampleDbId,sampleName,germplasmDbId, Special)][dfd, on=c(sampleDbId="SubjectID")]
+    dfd <- values$samplesdfd[,.(sampleDbId,sampleName,germplasmDbId)][dfd, on=c(sampleDbId="SubjectID")]
     setnames(dfd,old = "sampleDbId",new = "SubjectID")
     dfd [!is.na(germplasmDbId), Sample_Plot_Label:=paste0(sampleName," - GUID:",germplasmDbId)]
     dfd [is.na(Sample_Plot_Label), Sample_Plot_Label:=SubjectID]
-    dfd [is.na(Special), Special:=FALSE]
-    dfd [,Special:=c("Standard","Special")[as.numeric(Special)+1]]
-    values$df_data <- dfd[,c(colnames(values$df_data),"Sample_Plot_Label", "Special"), with=F]
+    values$df_data <- dfd[,c(colnames(values$df_data),"Sample_Plot_Label"), with=F]
     output$update_samp_res = renderText({paste("<span style=\"color:green\">Samples information updated: use the Sample_Plot_Label column as Sample Column at next step</span>")})
     updateSelectizeInput(session, inputId = "Icol", selected = "Sample_Plot_Label")
     updateNavbarPage(session, "tabsetId", selected = "match")
@@ -991,20 +991,20 @@ server <- function(input, output, session) {
             if (input$whichcall2==FALSE){
               #cols <- c("Allele_X" = "#3CB371FF", "Allele_Y" = "#DC143CFF", "Both_Alleles" = "#337AB7FF", "NA" = "#FF7F50FF", "Negative"="#808080FF")
               #names(cols) <- c(values$xcall,values$ycall,values$hcall,"NA", "Negative" )
-              if(any(colnames(values$toplot)=="Special")){
-                p <- ggplot(values$toplot,aes(x=Theta, y=R, colour=NewCall, key = snpclustId, text=paste(paste("Sample:",SampName),paste("Call:",Call), sep="\n"))) + geom_point()+ aes(shape=Special) + scale_shape_manual(values = c(Standard=16,Special=11), name="") #+facet_wrap(~Experiment_Name,ncol = 2)
-              }else{
+              #if(any(colnames(values$toplot)=="Special")){
+              #  p <- ggplot(values$toplot,aes(x=Theta, y=R, colour=NewCall, key = snpclustId, text=paste(paste("Sample:",SampName),paste("Call:",Call), sep="\n"))) + geom_point()+ aes(shape=Special) + scale_shape_manual(values = c(Standard=16,Special=11), name="") #+facet_wrap(~Experiment_Name,ncol = 2)
+              #}else{
                 p <- ggplot(values$toplot,aes(x=Theta, y=R, colour=NewCall, key = snpclustId, text=paste(paste("Sample:",SampName),paste("Call:",Call), sep="\n")))+ geom_point()
-              }
+              #}
               p <- p +  scale_colour_manual(values = values$recols, na.value = "#FF7F50FF")
             }else{
-              if(any(colnames(values$toplot)=="Special")){
-                p <- ggplot(values$toplot,aes(x=Theta, y=R, colour=Call, key = snpclustId, text=paste(paste("Sample:",SampName),paste("NewCall:",NewCall), sep="\n"))) +  geom_point()+ aes(shape=Special) + scale_shape_manual(values = c(Standard=16,Special=11), name="")  + coord_fixed(ratio = 1,xlim = c(0,maxfluo), ylim = c(0,maxfluo)) #+facet_wrap(~Experiment_Name,ncol = 2)
-                p <- p + scale_colour_manual(values = values$cols, na.value = "#FF7F50FF")
-              }else{
+              #if(any(colnames(values$toplot)=="Special")){
+              #  p <- ggplot(values$toplot,aes(x=Theta, y=R, colour=Call, key = snpclustId, text=paste(paste("Sample:",SampName),paste("NewCall:",NewCall), sep="\n"))) +  geom_point()+ aes(shape=Special) + scale_shape_manual(values = c(Standard=16,Special=11), name="")  + coord_fixed(ratio = 1,xlim = c(0,maxfluo), ylim = c(0,maxfluo)) #+facet_wrap(~Experiment_Name,ncol = 2)
+              #  p <- p + scale_colour_manual(values = values$cols, na.value = "#FF7F50FF")
+              #}else{
                 p <- ggplot(values$toplot,aes(x=Theta, y=R, colour=Call, key = snpclustId, text=paste(paste("Sample:",SampName),paste("NewCall:",NewCall), sep="\n"))) +  geom_point()   #+facet_wrap(~Experiment_Name,ncol = 2)
                 p <- p + scale_colour_manual(values = values$cols, na.value = "#FF7F50FF")
-              }
+              #}
             }
 
             ggplotly(p+ggtitle(ptitle)) %>% layout(dragmode = "lasso")
@@ -1027,31 +1027,31 @@ server <- function(input, output, session) {
             if (input$whichcall2==FALSE){
 
               #names(cols) <- c(values$xcall,values$ycall,values$hcall,"NA", "Negative" )
-              if(any(colnames(values$toplot)=="Special")){
-                p <- ggplot(values$toplot,aes(x=X.Fluor, y=Y.Fluor, colour=NewCall, key = snpclustId, text=paste("Sample:",SampName)))+ geom_point()+ aes(shape=Special) + scale_shape_manual(values = c(Standard=16,Special=11), name="") #+facet_wrap(~Experiment_Name,ncol = 2)
-              }else{
+              #if(any(colnames(values$toplot)=="Special")){
+              #  p <- ggplot(values$toplot,aes(x=X.Fluor, y=Y.Fluor, colour=NewCall, key = snpclustId, text=paste("Sample:",SampName)))+ geom_point()+ aes(shape=Special) + scale_shape_manual(values = c(Standard=16,Special=11), name="") #+facet_wrap(~Experiment_Name,ncol = 2)
+              #}else{
                 p <- ggplot(values$toplot,aes(x=X.Fluor, y=Y.Fluor, colour=NewCall, key = snpclustId, text=paste("Sample:",SampName)))+ geom_point()
-              }
+              #}
               if (input$fixed_ratio){
                 p <- p + coord_fixed(ratio = 1, xlim = c(0,maxfluo), ylim = c(0,maxfluo))
               }
               p <- p +  scale_colour_manual(values = values$recols, na.value = "#FF7F50FF")
             }else{
-              if(any(colnames(values$toplot)=="Special")){
-                p <- ggplot(values$toplot,aes(x=X.Fluor, y=Y.Fluor, colour=Call, key = snpclustId, text=paste("Sample:",SampName))) +
-                     geom_point()+ aes(shape=Special) + scale_shape_manual(values = c(Standard=16,Special=11), name="")
-                if (input$fixed_ratio){
-                  p <- p + coord_fixed(ratio = 1, xlim = c(0,maxfluo), ylim = c(0,maxfluo))
-                }
-                p <- p + scale_colour_manual(values = values$cols, na.value = "#FF7F50FF")
-              }else{
+              #if(any(colnames(values$toplot)=="Special")){
+              #  p <- ggplot(values$toplot,aes(x=X.Fluor, y=Y.Fluor, colour=Call, key = snpclustId, text=paste("Sample:",SampName))) +
+              #       geom_point()+ aes(shape=Special) + scale_shape_manual(values = c(Standard=16,Special=11), name="")
+              #  if (input$fixed_ratio){
+              #    p <- p + coord_fixed(ratio = 1, xlim = c(0,maxfluo), ylim = c(0,maxfluo))
+              #  }
+              #  p <- p + scale_colour_manual(values = values$cols, na.value = "#FF7F50FF")
+              #}else{
                 p <- ggplot(values$toplot,aes(x=X.Fluor, y=Y.Fluor, colour=Call, key = snpclustId, text=paste("Sample:",SampName))) +  geom_point()
                 if (input$fixed_ratio){
                   p <- p + coord_fixed(ratio = 1, xlim = c(0,maxfluo), ylim = c(0,maxfluo))
                 }
                 p <- p + scale_colour_manual(values = values$cols, na.value = "#FF7F50FF")
 
-              }
+              #}
             }
             if (length(s)){
               p <- p + geom_point(data=values$toplot[values$toplot$SubjectID%in%values$samplesdfd[s,]$sampleDbId,], aes(x=X.Fluor, y=Y.Fluor), shape = 21, colour = "#000000ff", size=3)
@@ -1064,7 +1064,9 @@ server <- function(input, output, session) {
       }
       }
   })
-
+  observeEvent(input$samples.clearsel,{
+    selectRows(dtproxy, selected=NULL)
+  })
   observeEvent(input$pushtobrapi,{
     brapicon <- values$maincon
     df <- values$newdf
