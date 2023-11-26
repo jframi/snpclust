@@ -1,6 +1,7 @@
 library(plotly)
 library(shiny)
 library(shinyBS)
+library(shinyjs)
 library(shinythemes)
 library(data.table)
 library(DT)
@@ -40,10 +41,20 @@ valid_file<-function(df,lc){
 }
 #### UI ####
 ui <- fluidPage(theme = shinytheme("flatly"),
+                shinyjs::useShinyjs(),
                 title = "snpclust",
                 shinysky::busyIndicator(wait = 1000, text = NULL),
                 tags$link(rel = "stylesheet", type = "text/css", href = "custom-div.css"),
-  navbarPage(title = "snpclust", id = "tabsetId",
+                tags$style(HTML(".navbar {background-image: linear-gradient(#04519b, #044687 60%, #033769);}")),
+                tags$style(HTML('
+                        .navbar-nav > li > a, .navbar-brand {
+                              padding-top:8px !important;
+                              padding-bottom:1px !important;
+                              height: 60px;
+                            }'
+                )
+                ),
+  navbarPage(title = uiOutput("title_navbar"), id = "tabsetId",
              tabPanel("Load data",value = "load",
                       #navlistPanel(widths = c(1,11),"From",
                       h4("Load data from file or from BrAPI endpoint:"),
@@ -154,10 +165,19 @@ ui <- fluidPage(theme = shinytheme("flatly"),
              tabPanel("Clustering",value="clust",
                       sidebarLayout(
                         sidebarPanel(
+                          splitLayout(
                           selectizeInput("SNP", label = "SNP", choices = "",
                                          options = list(placeholder = 'Select a SNP',
                                                         onInitialize = I('function() { this.setValue(""); }')
                                          )),
+                          actionButton("prevsnp", "<",style='padding:2px; font-size:80%'),
+                          actionButton("nextsnp", ">",style='padding:2px; font-size:80%'), cellWidths = c("90%","5%","5%"),
+                          tags$head(tags$style(HTML("
+                              .shiny-split-layout > div {
+                                overflow: visible;
+                              }
+                              ")))
+                          ),
                           selectizeInput("Plate", label = "Plate", choices = "", multiple=TRUE,options = list(plugins= list('remove_button'))),
                           #selectInput("whichcall", label = "Show Call", choices = c("current","new"),selected = "new"),
                           # radioButtons('whichcall', 'Display Call',
@@ -173,16 +193,6 @@ ui <- fluidPage(theme = shinytheme("flatly"),
                           checkboxInput(inputId = "tetar",label = "Use Theta/R",value = 0),
                           checkboxInput(inputId = "fixed_ratio",label = "Fixed axes",value = 0),
                           tags$hr(),
-                          bsCollapse(id="adv_geno_seetings", open=NULL,
-                                     bsCollapsePanel(title = "Advanced Alleles/genotypes settings", style="primary",
-                                                     h4("Alleles"),
-                                                     selectizeInput("snp_x_allele","X Allele", choices = c("A","C","G","T","-","X"), selected="X"),
-                                                     selectizeInput("snp_y_allele","Y Allele", choices = c("A","C","G","T","-","Y"), selected="Y"),
-                                                     h4("Genotypes"),
-                                                     numericInput("ploidy","Ploidy", value = 2, min = 1,max = 5, step = 1),
-                                                     selectizeInput("allele_sep", "Allele separator",choices=c(":","/","|"), selected = ":"))
-                          ),
-                          tags$hr(),
                           uiOutput("score_buttons"),
                           tags$br(),
                           #actionButton(inputId = "updateY", label = "Score as Allele Y", style="color: #fff; background-color: #dc143c; border-color: #2e6da4"),br(),br(),
@@ -191,7 +201,18 @@ ui <- fluidPage(theme = shinytheme("flatly"),
                           actionButton(inputId = "updateU", label = "Score as Missing", style="color: #fff; background-color: #ff7f50; border-color: #ff7f50"),#br(),br(),
                           actionButton(inputId = "updateN", label = "Score as NTC", style="color: #fff; background-color: #E54FFF; border-color: #E54FFF"),br(),br(),
                           tags$hr(),
-                          uiOutput("exportData")
+                          uiOutput("exportData"),
+                          tags$hr(),
+                          bsCollapse(id="adv_geno_seetings", open=NULL,
+                                     bsCollapsePanel(title = "Advanced Alleles/genotypes settings", style="primary",
+                                                     h4("Alleles"),
+                                                     selectizeInput("snp_x_allele","X Allele", choices = c("A","C","G","T","-","X"), selected="X"),
+                                                     selectizeInput("snp_y_allele","Y Allele", choices = c("A","C","G","T","-","Y"), selected="Y"),
+                                                     h4("Genotypes"),
+                                                     numericInput("ploidy","Ploidy", value = 2, min = 1,max = 5, step = 1),
+                                                     selectizeInput("allele_sep", "Allele separator",choices=c(":","/","|"), selected = ":"))
+                          )
+
 
                           #downloadButton('downloadData', 'Download new file')
 
@@ -201,9 +222,10 @@ ui <- fluidPage(theme = shinytheme("flatly"),
                           tags$hr(),
                           bsCollapse(id="samples_selection", open=NULL,
                                      bsCollapsePanel(title = "Highlight samples", style="primary",
+                                                     actionButton(inputId = "samples.clearsel", label = "Deselect all"),
                                         dataTableOutput('samples', height = 80)
-                                     )),
-                          actionButton(inputId = "samples.clearsel", label = "Unselect all")
+                                     ))
+
                         )
                       )
              ))
@@ -233,13 +255,29 @@ server <- function(input, output, session) {
                            currentSNP=NULL,
                            targetSNP=NULL,
                            confirmchangeSNP="none")
+  output$subtitle <- renderText("snpclust")
+  output$title_navbar = renderText("snpclust")
+
   scorebts <- reactiveValues()
   scorebts$ui <- list()
   o <- reactiveVal(list())
   parse_GET_param  <- reactive({
     pars <- parseQueryString(session$clientData$url_search)
   })
-
+  observeEvent(input$nextsnp,{
+    if (input$SNP==""){
+      updateSelectizeInput(session = session, inputId = "SNP", selected = values$snpinfos$SNPID[1])
+    } else {
+      updateSelectizeInput(session = session, inputId = "SNP", selected = values$snpinfos$SNPID[which(values$snpinfos$SNPID==input$SNP)+1])
+    }
+  })
+  observeEvent(input$prevsnp,{
+    if (input$SNP==""){
+      updateSelectizeInput(session = session, inputId = "SNP", selected = tail(values$snpinfos$SNPID,1))
+    } else {
+      updateSelectizeInput(session = session, inputId = "SNP", selected = values$snpinfos$SNPID[which(values$snpinfos$SNPID==input$SNP)-1])
+    }
+  })
   observeEvent(parse_GET_param(),{
 
     values$main_token <- parse_GET_param()$maintoken
@@ -303,6 +341,8 @@ server <- function(input, output, session) {
         hideTab(inputId = "tabsetId", target = "load")
         hideTab(inputId = "tabsetId", target = "samples")
         hideTab(inputId = "tabsetId", target = "match")
+          output$title_navbar <- renderUI(HTML(paste0("snpclust<br/><p style='font-size:10px; '>connected via BrAPI<br/>endpoint: ",paste0(parsed_url$brapi_protocol,parsed_url$brapi_db), "<br/>program: ", values$mainbrapiprogram, "</p>")))
+        updateNavbarPage(inputId = "tabsetId", selected = "clust")
         brapisupport <<- TRUE
         #updateSwitchInput(session = session, inputId = "brapiorfile", value = TRUE)
         updateCollapse(session, id="loadfrom", open="From BrAPI", close = "From file")
