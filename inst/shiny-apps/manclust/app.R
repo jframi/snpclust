@@ -165,19 +165,19 @@ ui <- fluidPage(theme = shinytheme("flatly"),
              tabPanel("Clustering",value="clust",
                       sidebarLayout(
                         sidebarPanel(
-                          splitLayout(
+                          #splitLayout(
                           selectizeInput("SNP", label = "SNP", choices = "",
                                          options = list(placeholder = 'Select a SNP',
                                                         onInitialize = I('function() { this.setValue(""); }')
                                          )),
-                          actionButton("prevsnp", "<",style='padding:2px; font-size:80%'),
-                          actionButton("nextsnp", ">",style='padding:2px; font-size:80%'), cellWidths = c("90%","5%","5%"),
-                          tags$head(tags$style(HTML("
-                              .shiny-split-layout > div {
-                                overflow: visible;
-                              }
-                              ")))
-                          ),
+                          #actionButton("prevsnp", "<",style='padding:2px; font-size:80%'),
+                          #actionButton("nextsnp", ">",style='padding:2px; font-size:80%'), cellWidths = c("90%","5%","5%"),
+                          #tags$head(tags$style(HTML("
+                          #    .shiny-split-layout > div {
+                          #      overflow: visible;
+                          #    }
+                          #    ")))
+                          #),
                           selectizeInput("Plate", label = "Plate", choices = "", multiple=TRUE,options = list(plugins= list('remove_button'))),
                           #selectInput("whichcall", label = "Show Call", choices = c("current","new"),selected = "new"),
                           # radioButtons('whichcall', 'Display Call',
@@ -218,7 +218,9 @@ ui <- fluidPage(theme = shinytheme("flatly"),
 
                         ),
                         mainPanel(
-                          plotlyOutput("plot", width = 800, height = 600),
+                          div(style="display: inline-block;vertical-align:middle;",actionButton("prevsnp", "<",style='padding:2px; font-size:100%')),
+                          div(style="display: inline-block;vertical-align:middle;",plotlyOutput("plot", width = 800, height = 600)),
+                          div(style="display: inline-block;vertical-align:middle;",actionButton("nextsnp", ">",style='padding:2px; font-size:100%')),
                           tags$hr(),
                           bsCollapse(id="samples_selection", open=NULL,
                                      bsCollapsePanel(title = "Highlight samples", style="primary",
