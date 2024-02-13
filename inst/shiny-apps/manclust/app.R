@@ -48,9 +48,14 @@ ui <- fluidPage(theme = shinytheme("flatly"),
                 tags$style(HTML(".navbar {background-image: linear-gradient(#04519b, #044687 60%, #033769);}")),
                 tags$style(HTML('
                         .navbar-nav > li > a, .navbar-brand {
-                              padding-top:8px !important;
+                              padding-top:1px !important;
                               padding-bottom:1px !important;
-                              height: 60px;
+                              height: 70px;
+                            display: flex;
+                            font-size: 18px;
+                            justify-content: center;
+                            align-items: center;
+
                             }'
                 )
                 ),
@@ -258,7 +263,7 @@ server <- function(input, output, session) {
                            targetSNP=NULL,
                            confirmchangeSNP="none")
   output$subtitle <- renderText("snpclust")
-  output$title_navbar = renderText("snpclust")
+  output$title_navbar = renderUI(div(img(src="sticker.png", width="60px")))#renderText("snpclust")
 
   scorebts <- reactiveValues()
   scorebts$ui <- list()
@@ -343,7 +348,8 @@ server <- function(input, output, session) {
         hideTab(inputId = "tabsetId", target = "load")
         hideTab(inputId = "tabsetId", target = "samples")
         hideTab(inputId = "tabsetId", target = "match")
-          output$title_navbar <- renderUI(HTML(paste0("snpclust<br/><p style='font-size:10px; '>connected via BrAPI<br/>endpoint: ",paste0(parsed_url$brapi_protocol,parsed_url$brapi_db), "<br/>program: ", values$mainbrapiprogram, "</p>")))
+          output$title_navbar <- renderUI(list(div(div(img(src="sticker.png", width="60px")),
+                                          div(HTML(paste0("<p style='font-size:10px; '><br/><br/>connected via BrAPI<br/>endpoint: ",paste0(parsed_url$brapi_protocol,parsed_url$brapi_db), "<br/>program: ", values$mainbrapiprogram, "</p>"))), style="display:flex")))
         updateNavbarPage(inputId = "tabsetId", selected = "clust")
         brapisupport <<- TRUE
         #updateSwitchInput(session = session, inputId = "brapiorfile", value = TRUE)
