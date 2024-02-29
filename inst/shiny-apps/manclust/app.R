@@ -831,10 +831,11 @@ server <- function(input, output, session) {
             calls <- calls[!is.na(calls)]
             values$cols <- calls
             names(values$cols) <- calls
-            values$cols[gsub("[:/|]","",calls)==paste(rep(values$snpinfos[SNPID==input$SNP, AlleleX],2),collapse = "")] <- "#3CB371FF"
-            values$cols[gsub("[:/|]","",calls)==paste(rep(values$snpinfos[SNPID==input$SNP, AlleleY],2),collapse = "")] <- "#DC143CFF"
-            values$cols[gsub("[:/|]","",calls)==paste(c(values$snpinfos[SNPID==input$SNP, AlleleY],values$snpinfos[SNPID==input$SNP, AlleleX]),collapse = "")] <- "#00CCC5FF"
-            values$cols[gsub("[:/|]","",calls)==paste(c(values$snpinfos[SNPID==input$SNP, AlleleX],values$snpinfos[SNPID==input$SNP, AlleleY]),collapse = "")] <- "#00CCC5FF"
+            snpinfo <- unique(values$snpinfos[,.(SNPID, AlleleX, AlleleY)])
+            values$cols[gsub("[:/|]","",calls)==paste(rep(snpinfo[SNPID==input$SNP, AlleleX],2),collapse = "")] <- "#3CB371FF"
+            values$cols[gsub("[:/|]","",calls)==paste(rep(snpinfo[SNPID==input$SNP, AlleleY],2),collapse = "")] <- "#DC143CFF"
+            values$cols[gsub("[:/|]","",calls)==paste(c(snpinfo[SNPID==input$SNP, AlleleY],snpinfo[SNPID==input$SNP, AlleleX]),collapse = "")] <- "#00CCC5FF"
+            values$cols[gsub("[:/|]","",calls)==paste(c(snpinfo[SNPID==input$SNP, AlleleX],snpinfo[SNPID==input$SNP, AlleleY]),collapse = "")] <- "#00CCC5FF"
             values$cols[gsub("[:/|]","",calls)=="NTC"] <- "#E54FFF"
             values$cols[!grepl("^#([A-Fa-f0-9]{8}|[A-Fa-f0-9]{6})$",values$cols)] <- "#FF7F50FF"
             guess_seps <- gsub("^.*([:/|]).*$","\\1",na.omit(grep("[[:punct:]]",calls, value = T)))
@@ -842,8 +843,8 @@ server <- function(input, output, session) {
 
             #$$$
             updateSelectizeInput(session = session, inputId = "allele_sep", selected = guess_sep)
-            updateSelectizeInput(session = session, inputId = "snp_x_allele", selected = values$snpinfos[SNPID==input$SNP, AlleleX])
-            updateSelectizeInput(session = session, inputId = "snp_y_allele", selected = values$snpinfos[SNPID==input$SNP, AlleleY])
+            updateSelectizeInput(session = session, inputId = "snp_x_allele", selected = snpinfo[SNPID==input$SNP, AlleleX])
+            updateSelectizeInput(session = session, inputId = "snp_y_allele", selected = snpinfo[SNPID==input$SNP, AlleleY])
           }
         }
       }
