@@ -765,6 +765,7 @@ server <- function(input, output, session) {
         if (input$SNP!=""){
           if (input$loadfrom=="From BrAPI"){
             brapi_variantsets <<- tryCatch(brapirv2::brapi_get_variantsets(values$maincon, studyDbId =  htmltools::urlEncodePath(values$study_dbid)), error=function(e) e)
+            setDT(brapi_variantsets)
             brapi_variantsetsIds <- unique(brapi_variantsets$variantSetDbId)
             brapi_variantsetsIds <- brapi_variantsetsIds[!is.na(brapi_variantsetsIds)]
             brapi_calls <<- do.call(rbind,
@@ -772,7 +773,8 @@ server <- function(input, output, session) {
                                            function(a) tryCatch({
                                              variants <- values$brapi_variants[variantNames==input$SNP & variantSetDbId==a,variantDbId]
                                              if (length(variants)>0){
-                                               brapi_get_calls(values$maincon, variantDbId = htmltools::urlEncodePath(variants), variantSetDbId = htmltools::urlEncodePath(a), expandHomozygotes = TRUE, sepPhased = sepPhased, sepUnphased = sepUnphased, unknownString = unknownString)
+                                               cs_count <- unique(brapi_variantsets[,.(callSetCount,variantSetDbId)])[variantSetDbId==a,callSetCount]
+                                               brapi_get_calls(values$maincon, variantDbId = htmltools::urlEncodePath(variants), variantSetDbId = htmltools::urlEncodePath(a), expandHomozygotes = TRUE, sepPhased = sepPhased, sepUnphased = sepUnphased, unknownString = unknownString, pageSize = as.numeric(cs_count)+1)
                                              }
                                            },error=function(e) e)
                                     )
