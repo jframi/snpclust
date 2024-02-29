@@ -56,9 +56,15 @@ ui <- fluidPage(theme = shinytheme("flatly"),
                             justify-content: center;
                             align-items: center;
 
-                            }'
-                )
-                ),
+                            }')),
+                tags$style(HTML("
+                           .navbar-nav {
+                           float: none !important;
+                           }
+                           .navbar-nav > li:nth-child(5) {
+                           float: right;
+                           }
+                           ")),
   navbarPage(title = uiOutput("title_navbar"), id = "tabsetId",
              tabPanel("Load data",value = "load",
                       #navlistPanel(widths = c(1,11),"From",
@@ -235,7 +241,7 @@ ui <- fluidPage(theme = shinytheme("flatly"),
 
                         )
                       )
-             ))
+             ), tabPanel("About"))
 )
 
 #### SERVER ####
@@ -324,6 +330,7 @@ server <- function(input, output, session) {
       }
       if (!is.null(parse_GET_param()$mainbrapistudy)){
         values$study_dbid <- parse_GET_param()$mainbrapistudy
+        values$study_name <- tryCatch(unique(brapirv2::brapi_get_studies(values$maincon, studyDbId =  htmltools::urlEncodePath(values$study_dbid))$studyName))
       }
       if (!is.null( parse_GET_param()$mainapiURL) & !is.null(parse_GET_param()$mainbrapiprogram) & !is.null(parse_GET_param()$mainbrapistudy)){
         values$brapi_variantsets <<- tryCatch(brapirv2::brapi_get_variantsets(values$maincon, studyDbId =  htmltools::urlEncodePath(values$study_dbid)), error=function(e) e)
@@ -349,7 +356,13 @@ server <- function(input, output, session) {
         hideTab(inputId = "tabsetId", target = "samples")
         hideTab(inputId = "tabsetId", target = "match")
           output$title_navbar <- renderUI(list(div(div(img(src="sticker.png", width="60px")),
-                                          div(HTML(paste0("<p style='font-size:10px; '><br/><br/>connected via BrAPI<br/>endpoint: ",paste0(parsed_url$brapi_protocol,parsed_url$brapi_db), "<br/>program: ", values$mainbrapiprogram, "</p>"))), style="display:flex")))
+                                          div(HTML(paste0("<p style='font-size:10px; '><br/><br/>connected via BrAPI<br/>endpoint: ",
+                                                          paste0(parsed_url$brapi_protocol,parsed_url$brapi_db),
+                                                          "<br/>program: ",
+                                                          values$mainbrapiprogram,
+                                                          "<br/>study: ",
+                                                          values$study_name,
+                                                          "</p>"))), style="display:flex")))
         updateNavbarPage(inputId = "tabsetId", selected = "clust")
         brapisupport <<- TRUE
         #updateSwitchInput(session = session, inputId = "brapiorfile", value = TRUE)
