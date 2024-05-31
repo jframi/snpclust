@@ -725,7 +725,15 @@ server <- function(input, output, session) {
     temp<-values$newdf
     selSNP<-input$SNP
     if (input$loadfrom=="From BrAPI"){
-
+      if (!is.null(input$Plate)){
+        if (input$SNP!=""){
+          values$toplot<-values$newdf[values$newdf$SNP==selSNP & values$newdf$Plate%in%input$Plate,]
+        }
+      }else{
+        if (input$SNP!=""){
+          values$toplot<-values$newdf[values$newdf$SNP==input$SNP,]
+        }
+      }
     } else {
       if (!is.null(input$Plate)){
         updateSelectizeInput(session, "SNP",selected=selSNP , choices = unique(temp[temp$Plate%in%input$Plate,"SNP"]),label = paste("SNP (Plates:",paste(input$Plate, collapse = ","),")",sep=""))
@@ -798,7 +806,7 @@ server <- function(input, output, session) {
               brapi_calls <- brapi_calls[genotypeMetadata.fieldAbbreviation=="FI" & !is.na(genotypeMetadata.fieldValue)]
               if (nrow(brapi_calls)>0){
                 cs <- suppressMessages(brapi_post_search_callsets(values$maincon, callSetDbIds = brapi_calls$callSetDbId))
-                sps <- suppressMessages(brapi_post_search_samples(values$maincon, sampleDbIds = cs$sampleDbId))
+                sps <- suppressMessages(brapi_post_search_samples(values$maincon, sampleDbIds = cs$sampleDbId, pageSize = length(cs$sampleDbId)))
                 setDT(cs)
                 setDT(sps)
                 values$samplesdfd <- sps[cs, on=.(sampleDbId)]
@@ -828,7 +836,7 @@ server <- function(input, output, session) {
                                "SubjectID",
                                "SampName"))
                 values$newdf <- data.frame(brapi_calls[,.(SNP, Call,snpclustId, SubjectID, SampName, X.Fluor, Y.Fluor, NewCall, Plate)])
-                updateSelectizeInput(session = session, inputId = "Plate", choices = unique(values$newdf$Plate))
+                updateSelectizeInput(session = session, inputId = "Plate", choices = sort(unique(values$newdf$Plate)))
               }
             }else{
               values$newdf <- data.frame(SNP="", Call="",snpclustId="", SubjectID="", SampName="", X.Fluor=0, Y.Fluor=0, NewCall="", Plate="")
