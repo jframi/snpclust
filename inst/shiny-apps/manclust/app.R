@@ -8,6 +8,7 @@ library(DT)
 library(brapirv2)
 library(shinyWidgets)
 library(httr)
+#library(profvis)
 
 options(warn =-1)
 options(shiny.maxRequestSize=300*1024^2)
@@ -41,6 +42,7 @@ valid_file<-function(df,lc){
 }
 #### UI ####
 ui <- fluidPage(theme = shinytheme("flatly"),
+                #profvis_ui("profiler"),
                 shinyjs::useShinyjs(),
                 title = "snpclust",
                 shinysky::busyIndicator(wait = 1000, text = NULL),
@@ -246,7 +248,7 @@ ui <- fluidPage(theme = shinytheme("flatly"),
 
 #### SERVER ####
 server <- function(input, output, session) {
-
+  #callModule(profvis_server, "profiler")
   values <- reactiveValues(df_data = NULL,
                            newdf = NULL,
                            samplesdfd = NULL,
@@ -795,7 +797,7 @@ server <- function(input, output, session) {
                                              variants <- values$brapi_variants[variantNames==input$SNP & variantSetDbId==a,variantDbId]
                                              if (length(variants)>0){
                                                cs_count <- unique(brapi_variantsets[,.(callSetCount,variantSetDbId)])[variantSetDbId==a,callSetCount]
-                                               brapi_get_calls(values$maincon, variantDbId = htmltools::urlEncodePath(variants), variantSetDbId = htmltools::urlEncodePath(a), expandHomozygotes = TRUE, sepPhased = sepPhased, sepUnphased = sepUnphased, unknownString = unknownString, pageSize = as.numeric(cs_count)+1)
+                                               brapi_get_calls_fast(values$maincon, variantDbId = htmltools::urlEncodePath(variants), variantSetDbId = htmltools::urlEncodePath(a), expandHomozygotes = TRUE, sepPhased = sepPhased, sepUnphased = sepUnphased, unknownString = unknownString, pageSize = as.numeric(cs_count)+1)
                                              }
                                            },error=function(e) e)
                                     )
@@ -805,11 +807,11 @@ server <- function(input, output, session) {
             if (any(colnames(brapi_calls)=="genotypeMetadata.fieldAbbreviation")){
               brapi_calls <- brapi_calls[genotypeMetadata.fieldAbbreviation=="FI" & !is.na(genotypeMetadata.fieldValue)]
               if (nrow(brapi_calls)>0){
-                cs <- suppressMessages(brapi_post_search_callsets(values$maincon, callSetDbIds = brapi_calls$callSetDbId))
-                sps <- suppressMessages(brapi_post_search_samples(values$maincon, sampleDbIds = cs$sampleDbId, pageSize = length(cs$sampleDbId)))
+                cs <- suppressMessages(brapi_post_search_callsets_fast(values$maincon, callSetDbIds = brapi_calls$callSetDbId))
+                sps <- suppressMessages(brapi_post_search_samples_fast(values$maincon, sampleDbIds = cs$sampleDbId, pageSize = length(cs$sampleDbId)))
                 setDT(cs)
                 setDT(sps)
-                values$samplesdfd <- sps[cs, on=.(sampleDbId)]
+                values$samplesdfd <- cs #sps[cs, on=.(sampleDbId)]
                 brapi_calls <- cbind(brapi_calls, brapi_calls[, tstrsplit(genotypeMetadata.fieldValue, split=",", names = c("X.Fluor","Y.Fluor"))])
                 brapi_calls[, X.Fluor:=as.numeric(X.Fluor)]
                 brapi_calls[, Y.Fluor:=as.numeric(Y.Fluor)]

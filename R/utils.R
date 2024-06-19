@@ -141,3 +141,167 @@ parse_api_url <- function(url){
 #   res<-jsonlite::fromJSON(rawToChar(req$content))
 #   return(data.table(res))
 # }
+
+brapi_get_calls_fast <- function(con = NULL,
+                                    callSetDbId = '',
+                                    variantDbId = '',
+                                    variantSetDbId = '',
+                                    expandHomozygotes = NA,
+                                    unknownString = '',
+                                    sepPhased = '',
+                                    sepUnphased = '',
+                                    pageToken = '',
+                                    page=0,
+                                    pageSize = 1000) {
+  ## Create a list of used arguments
+  usedArgs <- brapirv2:::brapi_usedArgs(origValues = FALSE)
+  if (exists(usedArgs[["sepPhased"]]) && usedArgs[["sepPhased"]] %in% c("|", "/")) {
+    usedArgs[["sepPhased"]] <- paste0("%",
+                                      toupper(charToRaw(usedArgs[["sepPhased"]])))
+  }
+  if (exists(usedArgs[["sepUnphased"]]) && usedArgs[["sepUnphased"]] %in% c("|", "/")) {
+    usedArgs[["sepUnphased"]] <- paste0("%",
+                                        toupper(charToRaw(usedArgs[["sepUnphased"]])))
+  }
+  if (exists(usedArgs[["unknownString"]]) && usedArgs[["unknownString"]] %in% c("|", "/")) {
+    usedArgs[["unknownString"]] <- paste0("%",
+                                          toupper(
+                                            charToRaw(
+                                              usedArgs[["unknownString"]])))
+  }
+  ## Check if BrAPI server can be reached given the connection details
+  brapi_checkCon(con = usedArgs[["con"]], verbose = FALSE)
+  ## Check validity of used and required arguments
+  brapirv2:::brapi_checkArgs(usedArgs, reqArgs = "")
+  ## Obtain the call url
+  callurl <- brapirv2:::brapi_GET_callURL(usedArgs = usedArgs,
+                                          callPath = "/calls",
+                                          reqArgs = "",
+                                          packageName = "BrAPI-Genotyping",
+                                          callVersion = 2.0)
+
+  try({
+    ## Make the call and receive the response
+    resp <- brapirv2:::brapi_GET(url = callurl, usedArgs = usedArgs)
+    ## Extract the content from the response object in human readable form
+    cont <- httr::content(x = resp, as = "text", encoding = "UTF-8")
+    ## Convert the content object into a data.frame
+    out <- data.table(jsonlite::fromJSON(cont)$result$data|> tidyr::unnest(cols = "genotypeMetadata", names_sep = "."))
+  })
+  ## Set class of output
+  class(out) <- c(class(out), "brapi_get_calls")
+  ## Show pagination information from metadata
+  brapirv2:::brapi_serverinfo_metadata(cont)
+  return(out)
+}
+
+
+brapi_post_search_callsets_fast <- function(con = NULL,
+                                       callSetDbIds = '',
+                                       callSetNames = '',
+                                       germplasmDbIds = '',
+                                       germplasmNames = '',
+                                       page = 0,
+                                       pageSize = 1000,
+                                       sampleDbIds = '',
+                                       sampleNames = '',
+                                       variantSetDbIds = '') {
+  ## Create a list of used arguments
+  usedArgs <- brapirv2:::brapi_usedArgs(origValues = FALSE)
+  ## Check if BrAPI server can be reached given the connection details
+  brapi_checkCon(con = usedArgs[["con"]], verbose = FALSE)
+  ## Check validity of used and required arguments
+  brapirv2:::brapi_checkArgs(usedArgs, reqArgs = "")
+  ## Obtain the call url
+  callurl <- brapirv2:::brapi_POST_callURL(usedArgs = usedArgs,
+                                           callPath = "/search/callsets",
+                                           reqArgs = "",
+                                           packageName = "BrAPI-Genotyping",
+                                           callVersion = 2.0)
+  ## Build the Body
+  callbody <- brapirv2:::brapi_POST_callBody(usedArgs = usedArgs,
+                                             reqArgs = "")
+
+  try({
+    ## Make the call and receive the response
+    resp <- brapirv2:::brapi_POST(url = callurl, body = callbody, usedArgs = usedArgs)
+    ## Message about call status
+    if (httr::status_code(resp) == 200) {
+      message(paste0("Immediate Response.", "\n"))
+    } else if (httr::status_code(resp) == 202) {
+      message(paste0("Saved or Asynchronous Response has provided a searchResultsDbId.", "\n"))
+      message(paste0("Use the GET /search/callsets/{searchResultsDbId} call to retrieve the paginated output.", "\n"))
+    } else {
+      stop(paste0("The POST /search/callsets call resulted in Server status, ", httr::http_status(resp)[["message"]]))
+    }
+    ## Extract the content from the response object in human readable form
+    cont <- httr::content(x = resp, as = "text", encoding = "UTF-8")
+    ## Convert the content object into a data.frame
+    out <- data.table(jsonlite::fromJSON(cont)$result$data|> tidyr::unnest(cols = "externalReferences", names_sep = "."))
+  })
+  ## Set class of output
+  class(out) <- c(class(out), "brapi_post_search_callsets")
+  ## Show pagination information from metadata
+  brapirv2:::brapi_serverinfo_metadata(cont)
+  return(out)
+}
+
+brapi_post_search_samples_fast <- function(con = NULL,
+                                      commonCropNames='',
+                                      externalReferenceIds='',
+                                      externalReferenceSources='',
+                                      germplasmDbIds='',
+                                      germplasmNames='',
+                                      observationUnitDbIds='',
+                                      page=0,
+                                      pageSize=1000,
+                                      plateDbIds='',
+                                      plateNames='',
+                                      programDbIds='',
+                                      programNames='',
+                                      sampleDbIds='',
+                                      sampleGroupDbIds='',
+                                      sampleNames='',
+                                      studyDbIds='',
+                                      studyNames='',
+                                      trialDbIds='',
+                                      trialNames='') {
+  ## Create a list of used arguments
+  usedArgs <- brapirv2:::brapi_usedArgs(origValues = FALSE)
+  ## Check if BrAPI server can be reached given the connection details
+  brapi_checkCon(con = usedArgs[["con"]], verbose = FALSE)
+  ## Check validity of used and required arguments
+  brapirv2:::brapi_checkArgs(usedArgs, reqArgs = "")
+  ## Obtain the call url
+  callurl <- brapirv2:::brapi_POST_callURL(usedArgs = usedArgs,
+                                           callPath = "/search/samples",
+                                           reqArgs = "",
+                                           packageName = "BrAPI-Genotyping",
+                                           callVersion = 2.0)
+  ## Build the Body
+  callbody <- brapirv2:::brapi_POST_callBody(usedArgs = usedArgs,
+                                             reqArgs = "")
+
+  try({
+    ## Make the call and receive the response
+    resp <- brapirv2:::brapi_POST(url = callurl, body = callbody, usedArgs = usedArgs)
+    ## Message about call status
+    if (httr::status_code(resp) == 200) {
+      message(paste0("Immediate Response.", "\n"))
+    } else if (httr::status_code(resp) == 202) {
+      message(paste0("Saved or Asynchronous Response has provided a searchResultsDbId.", "\n"))
+      message(paste0("Use the GET /search/samples/{searchResultsDbId} call to retrieve the paginated output.", "\n"))
+    } else {
+      stop(paste0("The POST /search/samples call resulted in Server status, ", httr::http_status(resp)[["message"]]))
+    }
+    ## Extract the content from the response object in human readable form
+    cont <- httr::content(x = resp, as = "text", encoding = "UTF-8")
+    ## Convert the content object into a data.frame
+    out <- data.table(jsonlite::fromJSON(cont)$result$data|> tidyr::unnest(cols = "externalReferences", names_sep = "."))
+  })
+  ## Set class of output
+  class(out) <- c(class(out), "brapi_post_search_samples")
+  ## Show pagination information from metadata
+  brapirv2:::brapi_serverinfo_metadata(cont)
+  return(out)
+}
