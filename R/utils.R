@@ -186,7 +186,7 @@ brapi_get_calls_fast <- function(con = NULL,
     ## Extract the content from the response object in human readable form
     cont <- httr::content(x = resp, as = "text", encoding = "UTF-8")
     ## Convert the content object into a data.frame
-    out <- data.table(jsonlite::fromJSON(cont)$result$data|> tidyr::unnest(cols = "genotypeMetadata", names_sep = "."))
+    out <- data.table(tidyr::unnest(jsonlite::fromJSON(cont)$result$data,cols = "genotypeMetadata", names_sep = "."))
   })
   ## Set class of output
   class(out) <- c(class(out), "brapi_get_calls")
@@ -237,7 +237,7 @@ brapi_post_search_callsets_fast <- function(con = NULL,
     ## Extract the content from the response object in human readable form
     cont <- httr::content(x = resp, as = "text", encoding = "UTF-8")
     ## Convert the content object into a data.frame
-    out <- data.table(jsonlite::fromJSON(cont)$result$data|> tidyr::unnest(cols = "externalReferences", names_sep = "."))
+    out <- data.table(tidyr::unnest(jsonlite::fromJSON(cont)$result$data, cols = "externalReferences", names_sep = "."))
   })
   ## Set class of output
   class(out) <- c(class(out), "brapi_post_search_callsets")
@@ -297,7 +297,7 @@ brapi_post_search_samples_fast <- function(con = NULL,
     ## Extract the content from the response object in human readable form
     cont <- httr::content(x = resp, as = "text", encoding = "UTF-8")
     ## Convert the content object into a data.frame
-    out <- data.table(jsonlite::fromJSON(cont)$result$data|> tidyr::unnest(cols = "externalReferences", names_sep = "."))
+    out <- data.table(tidyr::unnest(jsonlite::fromJSON(cont)$result$data,cols = "externalReferences", names_sep = "."))
   })
   ## Set class of output
   class(out) <- c(class(out), "brapi_post_search_samples")
