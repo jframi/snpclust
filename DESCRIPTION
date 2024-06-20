@@ -1,7 +1,7 @@
 Package: snpclust
 Type: Package
 Title: shiny app to visualize and manually correct clustering of fluorescence based SNP markers.
-Version: 1.0
+Version: 1.1
 Date: 2024-06-20
 Authors@R: c(
   person("Jean-Francois", "Rami", email = "rami@cirad.fr", role = c("aut", "cre")),
