@@ -821,7 +821,7 @@ server <- function(input, output, session) {
                 sps <- suppressMessages(brapi_post_search_samples_fast(values$maincon, sampleDbIds = cs$sampleDbId, pageSize = length(cs$sampleDbId)))
                 setDT(cs)
                 setDT(sps)
-                values$samplesdfd <- cs #sps[cs, on=.(sampleDbId)]
+                values$samplesdfd <- sps[cs, on=.(sampleDbId)]
                 brapi_calls <- cbind(brapi_calls, brapi_calls[, tstrsplit(genotypeMetadata.fieldValue, split=",", names = c("X.Fluor","Y.Fluor"))])
                 brapi_calls[, X.Fluor:=as.numeric(X.Fluor)]
                 brapi_calls[, Y.Fluor:=as.numeric(Y.Fluor)]
