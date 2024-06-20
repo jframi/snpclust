@@ -1,11 +1,12 @@
 Package: snpclust
 Type: Package
-Title: Utilities for calling SNPs from fluorescence data
-Version: 0.2.7
-Date: 2017-09-01
-Author: J-F Rami
-Maintainer: J-F Rami <rami@cirad>
-Description: Utilities for calling SNPs from fluorescence data
-Depends: sp, e1071, shiny, data.table, plotly, shinythemes
+Title: shiny app to visualize and manually correct clustering of fluorescence based SNP markers.
+Version: 1.1
+Date: 2024-06-20
+Authors@R: c(
+  person("Jean-Francois", "Rami", email = "rami@cirad.fr", role = c("aut", "cre")),
+  person("Alice", "Boizet", email = "alice.boizet@cirad.fr", role = c("aut")))
+Description: shiny app to visualize and manually correct clustering of fluorescence based SNP markers.
+Depends: shiny, data.table, ggplot2, plotly, shinythemes
 License: GPL-3
 LazyData: TRUE
