@@ -243,7 +243,17 @@ ui <- fluidPage(theme = shinytheme("flatly"),
 
                         )
                       )
-             ), tabPanel("About"))
+             ), tabPanel("About",
+                         h2(a("github",href="https://github.com/jframi/snpclust", target="_blank", icon("github")), align="right"),
+                         h1("snpclust"),
+                         img(src='sticker.png', height="10%", width="10%",  align = "right"),
+                         p("snpclust aims at visualizing and manually correct clustering of fluorescence based SNP markers."),
+                         p("It can load data from any kind of text files, or load data from a BrAPI endpoint."),
+                         h2("Contributors"),
+                         p("Jean-François Rami (Maintainer) - rami 'at' cirad.fr"),
+                         p("Alice Boizet (Author) - alice.boizet 'at' cirad.fr"),
+                         img(src='CIRAD_logo.png', height="15%", width="15%",  align = "left")
+                         ))
 )
 
 #### SERVER ####
