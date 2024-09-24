@@ -237,7 +237,10 @@ brapi_post_search_callsets_fast <- function(con = NULL,
     ## Extract the content from the response object in human readable form
     cont <- httr::content(x = resp, as = "text", encoding = "UTF-8")
     ## Convert the content object into a data.frame
-    out <- data.table(tidyr::unnest(jsonlite::fromJSON(cont)$result$data, cols = "externalReferences", names_sep = "."))
+    out <- jsonlite::fromJSON(cont)$result$data
+    if ("externalReferences" %in% colnames(out)) {
+      out <- data.table(tidyr::unnest(out, cols = "externalReferences", names_sep = "."))
+    }
   })
   ## Set class of output
   class(out) <- c(class(out), "brapi_post_search_callsets")
@@ -297,7 +300,10 @@ brapi_post_search_samples_fast <- function(con = NULL,
     ## Extract the content from the response object in human readable form
     cont <- httr::content(x = resp, as = "text", encoding = "UTF-8")
     ## Convert the content object into a data.frame
-    out <- data.table(tidyr::unnest(jsonlite::fromJSON(cont)$result$data,cols = "externalReferences", names_sep = "."))
+    out <- jsonlite::fromJSON(cont)$result$data
+    if ("externalReferences" %in% colnames(out)) {
+      out <- data.table(tidyr::unnest(out, cols = "externalReferences", names_sep = "."))
+    }
   })
   ## Set class of output
   class(out) <- c(class(out), "brapi_post_search_samples")

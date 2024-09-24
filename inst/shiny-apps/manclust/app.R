@@ -279,7 +279,8 @@ server <- function(input, output, session) {
                            study_dbid=NULL,
                            currentSNP=NULL,
                            targetSNP=NULL,
-                           confirmchangeSNP="none")
+                           confirmchangeSNP="none",
+                           userCanPush = FALSE)
   output$subtitle <- renderText("snpclust")
   output$title_navbar = renderUI(div(img(src="sticker.png", width="60px")))#renderText("snpclust")
 
@@ -379,12 +380,34 @@ server <- function(input, output, session) {
         brapisupport <<- TRUE
         #updateSwitchInput(session = session, inputId = "brapiorfile", value = TRUE)
         updateCollapse(session, id="loadfrom", open="From BrAPI", close = "From file")
+        checkIfuserCanPush(values$maincon, values$brapi_variantsetsIds)
       }
 
     }
   })
 
-
+  checkIfuserCanPush <- function(brapicon, variantSetDbIds) {
+    # check if user can write in these variantSets
+    data <- list()
+    for (i in 1:length(variantSetDbIds)) {
+      data <- append(data, list(list(variantSetDbId = jsonlite::unbox(variantSetDbIds[i]))))
+    }
+    body <- list(data = data)
+    jsonBody <- jsonlite::toJSON(body)
+    
+    brapiPutCallsUrl <- paste0(brapicon$protocol, brapicon$db)
+    if (brapicon$port != 80) {
+      brapiPutCallsUrl <- paste0(brapiPutCallsUrl, ":", brapicon$port)
+    }
+    brapiPutCallsUrl <- paste0(brapiPutCallsUrl, "/", brapicon$apipath, "/brapi/v2/calls")
+    res <- PUT(brapiPutCallsUrl, body = jsonBody, encode = "json", content_type_json(),
+               add_headers(Authorization=paste0("Bearer ", brapicon$token)))
+    values$userCanPush <- TRUE
+    if (res$status_code != 422) {
+      values$userCanPush <- FALSE
+    }
+  }
+  
   observeEvent(input$lc,{
     if (input$lc){
       updateRadioButtons(session,inputId = "sep",selected = '\t')
@@ -435,14 +458,16 @@ server <- function(input, output, session) {
     if(input$loadfrom=="From BrAPI"){
       hideTab(inputId = "tabsetId", target = "samples")
       hideTab(inputId = "tabsetId", target = "match")
-      if (!is.null(values$mainbrapiprogram)){
-        output$exportData <- renderUI({
-          actionButton(inputId = "pushtobrapi",label = paste0("Save data to ",values$mainbrapiprogram), icon = icon(name = "cloud-upload-alt"))
-        })
-      }else{
-        output$exportData <- renderUI({
-          actionButton(inputId = "pushtobrapi",label = "Save data to BrAPI endpoint", icon = icon(name = "cloud-upload-alt"))
-        })
+      if (values$userCanPush) {
+        if (!is.null(values$mainbrapiprogram)){
+          output$exportData <- renderUI({
+            actionButton(inputId = "pushtobrapi",label = paste0("Save data to ",values$mainbrapiprogram), icon = icon(name = "cloud-upload-alt"))
+          })
+        }else{
+          output$exportData <- renderUI({
+            actionButton(inputId = "pushtobrapi",label = "Save data to BrAPI endpoint", icon = icon(name = "cloud-upload-alt"))
+          })
+        }
       }
       if (!brapisupport){
         showNotification("To use BrAPI end-points, a list of brapi connections needs to be defined with options(brapi.cons= list(Connection1= brapirv2::brapi_connect(...))) before running the app", type="error",closeButton = TRUE, duration = NULL)
@@ -475,14 +500,11 @@ server <- function(input, output, session) {
 
   observeEvent(input$brapi_program,{
     if (input$mainbrapiendpoint!=""  & input$brapi_program!=""){
-    #values$maincon <<- options()$brapi.cons[[input$mainbrapiendpoint]]
-    #values$maincon$token <<- input$mainbrapitoken
-    brapi_studies <<- tryCatch(brapirv2::brapi_get_studies(values$maincon, trialDbId=input$brapi_program),
-                                  error=function(e) e)
-    updateSelectizeInput(session, "brapi_study",choices = brapi_studies$studyName, selected = NULL)
-    output$exportData <- renderUI({
-      actionButton(inputId = "pushtobrapi",label = paste0("Save data to ",input$brapi_program), icon = icon(name = "cloud-upload-alt"))
-    })
+      #values$maincon <<- options()$brapi.cons[[input$mainbrapiendpoint]]
+      #values$maincon$token <<- input$mainbrapitoken
+      brapi_studies <<- tryCatch(brapirv2::brapi_get_studies(values$maincon, trialDbId=input$brapi_program),
+                                    error=function(e) e)
+      updateSelectizeInput(session, "brapi_study",choices = brapi_studies$studyName, selected = NULL)
     }
   })
 
@@ -510,6 +532,13 @@ server <- function(input, output, session) {
       }else{
         output$retrieve_variants_res = renderText({paste("Found", nrow(values$brapi_variants), "variants:", paste(values$brapi_variants$variantNames[1:10],collapse = ", "), "...")})
       }
+      checkIfuserCanPush(values$maincon, values$brapi_variantsetsIds)
+      if (values$userCanPush) {
+        output$exportData <- renderUI({
+          actionButton(inputId = "pushtobrapi",label = "Save data to BrAPI endpoint", icon = icon(name = "cloud-upload-alt"))
+        })
+      }
+      
     }
   })
   observe( {
@@ -821,7 +850,7 @@ server <- function(input, output, session) {
                 sps <- suppressMessages(brapi_post_search_samples_fast(values$maincon, sampleDbIds = cs$sampleDbId, pageSize = length(cs$sampleDbId)))
                 setDT(cs)
                 setDT(sps)
-                values$samplesdfd <- sps[cs, on=.(sampleDbId)]
+                values$samplesdfd <- cs$sampleDbId
                 brapi_calls <- cbind(brapi_calls, brapi_calls[, tstrsplit(genotypeMetadata.fieldValue, split=",", names = c("X.Fluor","Y.Fluor"))])
                 brapi_calls[, X.Fluor:=as.numeric(X.Fluor)]
                 brapi_calls[, Y.Fluor:=as.numeric(Y.Fluor)]
@@ -1190,7 +1219,7 @@ server <- function(input, output, session) {
       showNotification("Calls updated", type="message",closeButton = TRUE, duration = 10)
       values$confirmchangeSNP <- "yes"
     } else {
-      showNotification("Error when pushing new calls", type="error",closeButton = TRUE, duration = 10)
+      showNotification(paste0("Error when pushing new calls: ", res$status_code) , type="error",closeButton = TRUE, duration = 10)
     }
 
     # showModal(modalDialog(
