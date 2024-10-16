@@ -304,7 +304,6 @@ server <- function(input, output, session) {
     }
   })
   observeEvent(parse_GET_param(),{
-
     values$main_token <- parse_GET_param()$maintoken
     values$bms_token <- parse_GET_param()$bmstoken
     values$brapi_endpoint_name <- parse_GET_param()$brapiendpointname
@@ -821,7 +820,12 @@ server <- function(input, output, session) {
                 sps <- suppressMessages(brapi_post_search_samples_fast(values$maincon, sampleDbIds = cs$sampleDbId, pageSize = length(cs$sampleDbId)))
                 setDT(cs)
                 setDT(sps)
-                values$samplesdfd <- sps[cs, on=.(sampleDbId)]
+                if (nrow(sps)>0){
+                  values$samplesdfd <- sps[cs, on=.(sampleDbId)]
+                } else {
+                  values$samplesdfd <- cs
+                  values$samplesdfd[, sampleName:=NA]
+                }
                 brapi_calls <- cbind(brapi_calls, brapi_calls[, tstrsplit(genotypeMetadata.fieldValue, split=",", names = c("X.Fluor","Y.Fluor"))])
                 brapi_calls[, X.Fluor:=as.numeric(X.Fluor)]
                 brapi_calls[, Y.Fluor:=as.numeric(Y.Fluor)]
@@ -837,16 +841,17 @@ server <- function(input, output, session) {
                 }
                 brapi_calls[, variantName:=input$SNP]
                 brapi_calls[, callSetName:=callSetDbId]
+                brapi_calls <- brapi_calls[values$samplesdfd, on=.(callSetDbId)]
                 #brapi_calls[,genotypeValue:=unlist(genotypeValue)]
                 setnames(brapi_calls,
                          old=c("variantName",
                                "genotypeValue",
                                "callSetDbId",
-                               "callSetName"),
+                               "sampleName"),
                          new=c("SNP",
                                "Call",
                                "SubjectID",
-                               "SampName"))
+                               "SampName"), skip_absent = T)
                 values$newdf <- data.frame(brapi_calls[,.(SNP, Call,snpclustId, SubjectID, SampName, X.Fluor, Y.Fluor, NewCall, Plate)])
                 updateSelectizeInput(session = session, inputId = "Plate", choices = sort(unique(values$newdf$Plate)))
               }
