@@ -624,13 +624,14 @@ server <- function(input, output, session) {
   #})
   observe({
     if(!is.null(values$samplesdfd)){
+      isolate(s <- input$samples_rows_selected)
       output$samples <- DT::renderDataTable(DT::datatable(values$samplesdfd,
                                                           class="compact",
                                                           filter = list(position='top', clear=F),
                                                           escape = F,
                                                           rownames = F,
                                                           extension = c("Scroller"),
-                                                          selection = 'multiple',
+                                                          selection = list(mode = 'multiple', selected = s),
                                                           option = list(
                                                             scrollX = T, scrollY = 450, scrollCollapse = F, scroller = T,
                                                             dom = 'Blfrtip'#,
@@ -647,7 +648,7 @@ server <- function(input, output, session) {
                                                             #                                      table.rows({ search: 'applied'}).select();
                                                             #                                      table.rows({ search: 'applied'}).deselect();}")))
                                                             )
-                                                          ), server = FALSE)
+                                                          ), server = TRUE)
       dtproxy <<- dataTableProxy('samples')
     }
   })
@@ -842,6 +843,7 @@ server <- function(input, output, session) {
                 brapi_calls[, variantName:=input$SNP]
                 brapi_calls[, callSetName:=callSetDbId]
                 brapi_calls <- brapi_calls[values$samplesdfd, on=.(callSetDbId)]
+                values$samplesdfd <-  brapi_calls[,.(callSetDbId,Call=genotypeValue)][values$samplesdfd,on=.(callSetDbId)]
                 #brapi_calls[,genotypeValue:=unlist(genotypeValue)]
                 setnames(brapi_calls,
                          old=c("variantName",
