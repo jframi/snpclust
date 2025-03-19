@@ -729,7 +729,24 @@ server <- function(input, output, session) {
     if (input$intertek_guess){
       values$snpinfos <- values$intk_snpinfos[,.(SNPID,AlleleX, AlleleY)]
     } else {
-      values$snpinfos <- data.table(SNPID=unique(temp$SNP), AlleleX="X", AlleleY="Y")
+      # Try to figure out what are the alleles from the data
+      T <- data.table(temp)
+      T[,c("Allele1","Allele2"):=tstrsplit(Call, split="[:/|]")]
+      TT<- melt(T, id.vars = c( "SNP",
+                                "SampName",
+                                "X.Fluor",
+                                "Y.Fluor",
+                                "Call",
+                                "Plate",
+                                "NewCall",
+                                "snpclustId"),
+                variable.name = "AlleleNb",
+                value.name = "Allele")
+      TT <- TT[Allele%in%c("A","C","G","T")]
+      TTT <- TT[,.(X.mean=mean(X.Fluor),Y.mean=mean(Y.Fluor)),.(SNP,Allele)]
+      TTTT <- TTT[,.(AlleleX=Allele[which.max(X.mean)],AlleleY=Allele[which.max(Y.mean)]), .(SNPID=SNP)]
+      #values$snpinfos <- data.table(SNPID=unique(temp$SNP), AlleleX="X", AlleleY="Y")
+      values$snpinfos <- TTTT
     }
 
   })
