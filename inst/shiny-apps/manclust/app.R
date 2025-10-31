@@ -1,6 +1,6 @@
 library(plotly)
 library(shiny)
-library(shinyBS)
+#library(shinyBS)
 library(shinyjs)
 library(shinythemes)
 library(data.table)
@@ -24,10 +24,7 @@ if (is.null(options()$brapi.cons)) {
 } else {
   brapisupport <-TRUE
   brapi_connections <- names(options("brapi.cons")$brapi.cons)
-
 }
-
-
 
 valid_file<-function(df,lc){
   if (lc){
@@ -40,225 +37,305 @@ valid_file<-function(df,lc){
     return(TRUE)
   }
 }
-#### UI ####
-ui <- fluidPage(theme = shinytheme("flatly"),
-                #profvis_ui("profiler"),
-                shinyjs::useShinyjs(),
-                title = "snpclust",
-                shinysky::busyIndicator(wait = 1000, text = NULL),
-                tags$link(rel = "stylesheet", type = "text/css", href = "custom-div.css"),
-                tags$style(HTML(".navbar {background-image: linear-gradient(#04519b, #044687 60%, #033769);}")),
-                tags$style(HTML('
-                        .navbar-nav > li > a, .navbar-brand {
-                              padding-top:1px !important;
-                              padding-bottom:1px !important;
-                              height: 70px;
-                            display: flex;
-                            font-size: 18px;
-                            justify-content: center;
-                            align-items: center;
+# UI ####
+ui <- fluidPage(#theme = shinytheme("flatly"),
+  ## Theme customization ####
+  theme = bs_theme(preset = "sandstone", version = 5) |> bs_add_rules("
+  :root {
+   --bslib-spacer: 0.5rem;
+   --bslib-mb-spacer: var(--bslib-spacer, 0.5rem);
+  }
+  /* Customize navbar */
+    .navbar-nav .nav-link.active {
+      color: #ffffff;
+    }
+    .navbar-nav .nav-link {
+      color: rgb(164, 164, 164);
+    }
+    .navbar {
+      --bs-navbar-padding-y: 0rem;
+    }
+    .navbar {
+      background-image: linear-gradient(#04519b, #044687 60%, #033769);
+    }
+    .navbar-nav > li > a, .navbar-brand {
+      padding-top:1px !important;
+      padding-bottom:1px !important;
+      height: 70px;
+      display: flex;
+      font-size: 18px;
+      justify-content: center;
+      align-items: center;
+    }
+    .navbar-nav {
+      float: none !important;
+    }
+    .navbar-nav > li:nth-child(5) {
+      float: right;
+    }
+    .nav-underline .nav-link.active {
+      border-bottom: 4px solid #3498db;
+    }
 
-                            }')),
-                tags$style(HTML("
-                           .navbar-nav {
-                           float: none !important;
-                           }
-                           .navbar-nav > li:nth-child(5) {
-                           float: right;
-                           }
-                           ")),
-  navbarPage(title = uiOutput("title_navbar"), id = "tabsetId",
-             tabPanel("Load data",value = "load",
-                      #navlistPanel(widths = c(1,11),"From",
-                      h4("Load data from file or from BrAPI endpoint:"),
-                      #switchInput("brapiorfile",   label = "Click to choose",
-                      #            value = ifelse(brapisupport,TRUE,FALSE),
-                      #            onLabel = "BrAPI",
-                      #            offLabel = "File",labelWidth = 130, onStatus = "success", offStatus = "info"
-                      #),
-                      bsCollapse(id="loadfrom", open="From file",
-                        bsCollapsePanel(title = "From file", style="info",
-                        #tabPanel("File",
-                                 h3("Load data from file"),
-                                 #fluidRow(
-                                   h4("File format"),
-                                   checkboxInput('lc', 'LightCycler 96 Format', FALSE),
-                                   checkboxInput('intertek_guess', 'Intertek format (will guess number of lines to skip)', FALSE, width = '100%'),
-                                   column(width = 2,
-                                          radioButtons('sep', 'Separator',
-                                                       c(Comma=',',
-                                                         Semicolon=';',
-                                                         Tab='\t'),
-                                                       '\t')),
-                                   column(2,
-                                          radioButtons('quote', 'Quote',
-                                                       c(None='',
-                                                         'Double Quote'='"',
-                                                         'Single Quote'="'"),
-                                                       '')),
-                                   column(2,
-                                          radioButtons('dec', 'Decimal separator',
-                                                       c(Comma=',',
-                                                         'Point'='.'),
-                                                       '.')),
-                                   column(2,
-                                          checkboxInput('header', 'Header', TRUE),
-                                          numericInput(inputId = 'skip',label = 'Number of lines to skip',value = 0)),
-                                   tags$hr(),
-                                   fileInput('file1', 'Choose file to upload'
-                                             #accept = c(
-                                             #  'text/csv',
-                                             #  'text/comma-separated-values',
-                                             #  'text/tab-separated-values',
-                                             #  'text/plain',
-                                             #  '.csv',
-                                             #  '.tsv'
-                                             #)
-                                   ),
-                                 tableOutput("df_data_out")
-                        ),
-                        bsCollapsePanel(title = "From BrAPI", style="success",
-                        #tabPanel("BrAPI",
-                                 h3("Load data from BrAPI endpoint"),
-                                 selectizeInput("mainbrapiendpoint","BrAPI end point", choices = brapi_connections),
-                                 passwordInput("mainbrapitoken","Token"),
-                                 actionButton("connect_brapi","Connect"),
-                                 htmlOutput("mainbrapiendpoint_connect_res"),
-                                 selectizeInput("brapi_program", "Program", choices = NULL, selected = NULL,
-                                                options = list(placeholder = 'Select a database',
-                                                            onInitialize = I('function() { this.setValue(""); }')
-                                                            )
-                                                ),
-                                 selectizeInput("brapi_study", "Study", choices = NULL, selected = NULL,
-                                                options = list(
-                                                  placeholder = 'Select a project',
-                                                  onInitialize = I('function() { this.setValue(""); }'))
-                                                ),
-                                htmlOutput("retrieve_variants_res")
-                        )
-                      )),
-             tabPanel("Retrieve Samples information",value = "samples",
-                        h3(
-                        div(style="display:inline-block;",img(src="ibp.png", width="30px"), style="left;"),
-                        div("BMS connection")),
-                        column(width = 3,
-                               selectizeInput("bmsendpoint","BMS end point", choices = brapi_connections),
-                               passwordInput("bmstoken","BMS token"),
-                               actionButton("connect_bms","Connect"),
-                               htmlOutput("connect_res"),
-                               tags$hr(),
-                               #selectizeInput("crop","Crop", choices = NA),
-                               selectizeInput("program","Programme", choices = NULL),
-                               #tags$hr(),
-                               #selectizeInput("sample_list","Sample List", choices = NULL),
-                               #checkboxInput('loop_over_progs', 'Search in all programs', FALSE),
-                               actionButton("fetch_samples","Fetch samples information")
-                               ),
-                        column(9,dataTableOutput("samples_info",height = "600px"),
-                               #div(style="display: inline-block;vertical-align:top;",actionButton("special_samples","Toggle selected as special samples")),
-                               div(style="display: inline-block;vertical-align:top;",actionButton("update_samples","Update samples information")),
-                               htmlOutput("update_samp_res")),
-#                        column(2),
-#                        column(2),
-#
-                               #checkboxInput('header', 'Header', TRUE),
-                               #numericInput(inputId = 'skip',label = 'Number of lines to skip',value = 0)),
-                        tags$hr()
-             ),
-             tabPanel("Match Columns",value = "match",
-                      #selectInput("kcol", label = "Identification Column", choices = NA),
-                      selectizeInput("Xcol", label = "X Fluo Column", choices = NA),
-                      selectizeInput("Ycol", label = "Y Fluo Column", choices = NA),
-                      selectizeInput("Ccol", label = "Call Column", choices = NA),
-                      selectizeInput("Pcol", label = "Plate Column", choices = NA),
-                      selectizeInput("Scol", label = "SNP Column", choices = NA),
-                      selectizeInput("Icol", label = "Sample Column", choices = NA),
-                      actionButton(inputId = "ok_matchcol", label = "OK")
-             ),
-             tabPanel("Clustering",value="clust",
-                      sidebarLayout(
-                        sidebarPanel(
-                          #splitLayout(
-                          selectizeInput("SNP", label = "SNP", choices = "",
-                                         options = list(placeholder = 'Select a SNP',
-                                                        onInitialize = I('function() { this.setValue(""); }')
-                                         )),
-                          #actionButton("prevsnp", "<",style='padding:2px; font-size:80%'),
-                          #actionButton("nextsnp", ">",style='padding:2px; font-size:80%'), cellWidths = c("90%","5%","5%"),
-                          #tags$head(tags$style(HTML("
-                          #    .shiny-split-layout > div {
-                          #      overflow: visible;
-                          #    }
-                          #    ")))
-                          #),
-                          selectizeInput("Plate", label = "Plate", choices = "", multiple=TRUE,options = list(plugins= list('remove_button'))),
-                          #selectInput("whichcall", label = "Show Call", choices = c("current","new"),selected = "new"),
-                          # radioButtons('whichcall', 'Display Call',
-                          #              c(Current='current',
-                          #                New='new'),
-                          #              'current'),
-                          switchInput("whichcall2",   label = "Switch current/new call",
-                                      value = TRUE,
-                                      onLabel = "Current",
-                                      offLabel = "New", labelWidth = 180, onStatus = "info", offStatus = "warning"),
-                          actionButton(inputId = "copycall", label = "Copy current to new"),
-                          actionButton(inputId = "resetnewcall", label = "Reset new call"),
-                          checkboxInput(inputId = "tetar",label = "Use Theta/R",value = 0),
-                          checkboxInput(inputId = "fixed_ratio",label = "Fixed axes",value = 0),
-                          tags$hr(),
-                          uiOutput("score_buttons"),
-                          tags$br(),
-                          #actionButton(inputId = "updateY", label = "Score as Allele Y", style="color: #fff; background-color: #dc143c; border-color: #2e6da4"),br(),br(),
-                          #actionButton(inputId = "updateH", label = "Score as Heterozygous", style="color: #fff; background-color: #337ab7; border-color: #2e6da4"),#br(),br(),
-                          #actionButton(inputId = "updateX", label = "Score as Allele X", style="color: #fff; background-color: #3cb371; border-color: #2e6da4"),br(),br(),
-                          actionButton(inputId = "updateU", label = "Score as Missing", style="color: #fff; background-color: #ff7f50; border-color: #ff7f50"),#br(),br(),
-                          actionButton(inputId = "updateN", label = "Score as NTC", style="color: #fff; background-color: #E54FFF; border-color: #E54FFF"),br(),br(),
-                          tags$hr(),
-                          uiOutput("exportData"),
-                          tags$hr(),
-                          bsCollapse(id="adv_geno_seetings", open=NULL,
-                                     bsCollapsePanel(title = "Advanced Alleles/genotypes settings", style="primary",
-                                                     h4("Alleles"),
-                                                     selectizeInput("snp_x_allele","X Allele", choices = c("A","C","G","T","-","X"), selected="X"),
-                                                     selectizeInput("snp_y_allele","Y Allele", choices = c("A","C","G","T","-","Y"), selected="Y"),
-                                                     h4("Genotypes"),
-                                                     numericInput("ploidy","Ploidy", value = 2, min = 1,max = 5, step = 1),
-                                                     selectizeInput("allele_sep", "Allele separator",choices=c(":","/","|"), selected = ":"))
-                          )
+  /* Customize accordion button bg color */
+  /* Select by data-value, which exists for each panel */
+    .accordion-item[data-value='fromfile'] .accordion-button {
+      background-color: #3498db !important;
+      color: white !important;
+    }
+    .accordion-item[data-value='fromfile'] .accordion-button:not(.collapsed) {
+      background-color: #3498db !important;
+      color: white !important;
+    }
 
+    .accordion-item[data-value='frombrapi'] .accordion-button {
+      background-color: #18bc9c !important;
+      color: white !important;
+      /*font-size: 1.5rem;*/
+    }
+    .accordion-item[data-value='frombrapi'] .accordion-button:not(.collapsed) {
+      background-color: #18bc9c !important;
+      color: white !important;
+    }
 
-                          #downloadButton('downloadData', 'Download new file')
+    .accordion-item[data-value='advsetgs'] .accordion-button {
+      background-color: #2c3e50 !important;
+      color: white !important;
+    }
+    .accordion-item[data-value='advsetgs'] .accordion-body {
+      background-color: #ecf0f1 !important;
+    }
 
-                        ),
-                        mainPanel(
-                          div(style="display: inline-block;vertical-align:middle;",actionButton("prevsnp", "<",style='padding:2px; font-size:100%')),
-                          div(style="display: inline-block;vertical-align:middle;",plotlyOutput("plot", width = 800, height = 600)),
-                          div(style="display: inline-block;vertical-align:middle;",actionButton("nextsnp", ">",style='padding:2px; font-size:100%')),
-                          tags$hr(),
-                          bsCollapse(id="samples_selection", open=NULL,
-                                     bsCollapsePanel(title = "Highlight samples", style="primary",
-                                                     actionButton(inputId = "samples.clearsel", label = "Deselect all"),
-                                        dataTableOutput('samples', height = 80)
-                                     ))
+    .accordion-item[data-value='advsetgs'] .accordion-button:not(.collapsed) {
+      background-color: #2c3e50 !important;
+      color: white !important;
+    }
 
-                        )
-                      )
-             ), tabPanel("About",
-                         h2(a("github",href="https://github.com/jframi/snpclust", target="_blank", icon("github")), align="right"),
-                         h1("snpclust"),
-                         img(src='sticker.png', height="10%", width="10%",  align = "right"),
-                         p("snpclust aims at visualizing and manually correct clustering of fluorescence based SNP markers."),
-                         p("It can load data from any kind of text files, or load data from a BrAPI endpoint."),
-                         h2("Contributors"),
-                         p("Jean-François Rami (Maintainer) - rami 'at' cirad.fr"),
-                         p("Alice Boizet (Author) - alice.boizet 'at' cirad.fr"),
-                         img(src='CIRAD_logo.png', height="15%", width="15%",  align = "left")
-                         ))
+    .accordion-item[data-value='highlsampl'] .accordion-button {
+      background-color: #2c3e50 !important;
+      color: white !important;
+    }
+    .accordion-item[data-value='highlsampl'] .accordion-button:not(.collapsed) {
+      background-color: #2c3e50 !important;
+      color: white !important;
+    }"),
+  #profvis_ui("profiler"),
+  shinyjs::useShinyjs(),
+  title = "snpclust",
+  #shinysky::busyIndicator(wait = 1000, text = NULL),
+  shinybusy::add_busy_spinner(spin = "fading-circle", position = "top-left", margins = c(75, 415), color = "#225691", height = 20, width =20, timeout = 100),
+  #tags$link(rel = "stylesheet", type = "text/css", href = "custom-div.css"),
+  #tags$style(HTML(".navbar {background-image: linear-gradient(#04519b, #044687 60%, #033769);}")),
+  #tags$style(HTML('
+  #        .navbar-nav > li > a, .navbar-brand {
+  #              padding-top:1px !important;
+  #              padding-bottom:1px !important;
+  #              height: 70px;
+  #            display: flex;
+  #            font-size: 18px;
+  #            justify-content: center;
+  #            align-items: center;
+  #            }')),
+  #tags$style(HTML("
+  #           .navbar-nav {
+  #           float: none !important;
+  #           }
+  #           .navbar-nav > li:nth-child(5) {
+  #           float: right;
+  #           }
+  #           ")),
+
+  bslib::page_navbar(title = uiOutput("title_navbar"), id = "tabsetId",
+                     ## UI: Load data panel ####
+                     bslib::nav_panel("Load data",value = "load",
+                                      h4("Load data from file or from BrAPI endpoint:"),
+                                      ### UI: From file acc ####
+                                      bslib::accordion(id = "Open_From", multiple = FALSE,
+                                                       bslib::accordion_panel(title = "Load data from file", value = "fromfile",
+                                                                              #tabPanel("File",
+                                                                              #fluidRow(
+                                                                              h5("File format"),
+                                                                              checkboxInput('lc', 'LightCycler 96 Format', FALSE),
+                                                                              checkboxInput('intertek_guess', 'Intertek format (will guess number of lines to skip)', FALSE, width = '100%'),
+                                                                              bslib::layout_columns(
+                                                                                bslib::card(
+                                                                                  radioButtons('sep', 'Separator',
+                                                                                               c(Comma=',',
+                                                                                                 Semicolon=';',
+                                                                                                 Tab='\t'),
+                                                                                               '\t')
+                                                                                ),
+                                                                                bslib::card(
+                                                                                  radioButtons('quote', 'Quote',
+                                                                                               c(None='',
+                                                                                                 'Double Quote'='"',
+                                                                                                 'Single Quote'="'"),
+                                                                                               '')
+                                                                                ),
+                                                                                bslib::card(
+                                                                                  radioButtons('dec', 'Decimal separator',
+                                                                                               c(Comma=',',
+                                                                                                 'Point'='.'),
+                                                                                               '.')
+                                                                                ),
+                                                                                bslib::card(
+                                                                                  checkboxInput('header', 'Header', TRUE),
+                                                                                  numericInput(inputId = 'skip',label = 'Number of lines to skip',value = 0)
+                                                                                )
+                                                                              ),
+                                                                              fileInput('file1', 'Choose file to upload'
+                                                                                        #accept = c(
+                                                                                        #  'text/csv',
+                                                                                        #  'text/comma-separated-values',
+                                                                                        #  'text/tab-separated-values',
+                                                                                        #  'text/plain',
+                                                                                        #  '.csv',
+                                                                                        #  '.tsv'
+                                                                                        #)
+                                                                              ),
+                                                                              tableOutput("df_data_out")),
+                                                       ### UI: From BrAPI acc ####
+                                                       bslib::accordion_panel(title = "Load data from BrAPI endpoint", value = "frombrapi",
+                                                                              div(style="color: red;",
+                                                                                  textOutput(outputId = "warn_brapi")
+                                                                                  ),
+                                                                              selectizeInput("mainbrapiendpoint","BrAPI end point", choices = brapi_connections),
+                                                                              passwordInput("mainbrapitoken","Token"),
+                                                                              actionButton("connect_brapi","Connect"),
+                                                                              htmlOutput("mainbrapiendpoint_connect_res"),
+                                                                              selectizeInput("brapi_program", "Program", choices = NULL, selected = NULL,
+                                                                                             options = list(placeholder = 'Select a database',
+                                                                                                            onInitialize = I('function() { this.setValue(""); }')
+                                                                                             )
+                                                                              ),
+                                                                              selectizeInput("brapi_study", "Study", choices = NULL, selected = NULL,
+                                                                                             options = list(
+                                                                                               placeholder = 'Select a project',
+                                                                                               onInitialize = I('function() { this.setValue(""); }'))
+                                                                              ),
+                                                                              htmlOutput("retrieve_variants_res")
+                                                       )
+                                      ),
+                     ),
+                     ## UI: Samples information panel ####
+                     bslib::nav_panel("Retrieve Samples information",value = "samples",
+                                        div(style="display:flex;gap:10px;",
+                                            img(src="ibp.png", width="30px", height="30px"),
+                                            h3("BMS connection")),
+                                      div(style="color: red;",
+                                          textOutput(outputId = "warn_brapi_samples")
+                                      ),
+                                      bslib::layout_columns(col_widths = c(3,9),
+                                      card(selectizeInput("bmsendpoint","BMS end point", choices = brapi_connections),
+                                             passwordInput("bmstoken","BMS token"),
+                                             actionButton("connect_bms","Connect"),
+                                             htmlOutput("connect_res"),
+                                             tags$hr(),
+                                             #selectizeInput("crop","Crop", choices = NA),
+                                             selectizeInput("program","Programme", choices = NULL),
+                                             #tags$hr(),
+                                             #selectizeInput("sample_list","Sample List", choices = NULL),
+                                             #checkboxInput('loop_over_progs', 'Search in all programs', FALSE),
+                                             actionButton("fetch_samples","Fetch samples information")
+                                      ),
+                                      card(height = "700px", dataTableOutput("samples_info",height = "600px"),
+                                             #div(style="display: inline-block;vertical-align:top;",actionButton("special_samples","Toggle selected as special samples")),
+                                             div(style="display: inline-block;vertical-align:top;",actionButton("update_samples","Update samples information")),
+                                             htmlOutput("update_samp_res")),
+                                      #                        column(2),
+                                      #                        column(2),
+                                      #
+                                      #checkboxInput('header', 'Header', TRUE),
+                                      #numericInput(inputId = 'skip',label = 'Number of lines to skip',value = 0)),
+                                      tags$hr()
+                                      )
+
+                     ),
+                     ## UI: Match columns panel ####
+                     bslib::nav_panel("Match Columns",value = "match",
+                                      bslib::layout_column_wrap(width = 1/4,
+                                                                bslib::card(
+                                                                  #selectInput("kcol", label = "Identification Column", choices = NA),
+                                                                  selectizeInput("Xcol", label = "X Fluo Column", choices = NA),
+                                                                  selectizeInput("Ycol", label = "Y Fluo Column", choices = NA),
+                                                                  selectizeInput("Ccol", label = "Call Column", choices = NA),
+                                                                  selectizeInput("Pcol", label = "Plate Column", choices = NA),
+                                                                  selectizeInput("Scol", label = "SNP Column", choices = NA),
+                                                                  selectizeInput("Icol", label = "Sample Column", choices = NA),
+                                                                  actionButton(inputId = "ok_matchcol", label = "OK")
+                                                                ))
+                     ),
+                     ## UI: Clustering main panel ####
+                     bslib::nav_panel("Clustering",value="clust",
+                                      bslib::layout_sidebar(
+                                        sidebar=bslib::sidebar(width = 400, bg="#ecf0f1",open="always",
+                                                               selectizeInput("SNP", label = "SNP", choices = "",
+                                                                              options = list(placeholder = 'Select a SNP',
+                                                                                             onInitialize = I('function() { this.setValue(""); }')
+                                                                              )),
+                                                               #pickerInput("Plate", label = "Plate", choices = "", multiple=TRUE),
+                                                               selectizeInput("Plate", label = "Plate", choices = "", multiple=TRUE,options = list(plugins= list('remove_button'))),
+                                                               radioGroupButtons(
+                                                                 inputId = "whichcall2",
+                                                                 label = "Display:",
+                                                                 choices = c("Current call", "New call"), checkIcon = list(yes=icon(name = "check-double"))
+                                                               ),
+                                                               actionButton(inputId = "copycall", label = "Copy current to new"),
+                                                               actionButton(inputId = "resetnewcall", label = "Reset new call"),
+                                                               checkboxInput(inputId = "tetar",label = "Use Theta/R",value = 0),
+                                                               checkboxInput(inputId = "fixed_ratio",label = "Fixed axes",value = 0),
+                                                               #tags$hr(),
+                                                               div(style="display: flex; gap: 5px;flex-wrap: wrap;",
+                                                               uiOutput("score_buttons"),
+                                                               actionButton(inputId = "updateU", label = "Score as Missing", style="color: #fff; background-color: #ff7f50; border-color: #ff7f50"),#br(),br(),
+                                                               actionButton(inputId = "updateN", label = "Score as NTC", style="color: #fff; background-color: #E54FFF; border-color: #E54FFF")
+                                                               ),br(),br(),
+                                                               uiOutput("exportData"),
+                                                               bslib::accordion(id = "adv_allgeno_settings", open = FALSE,
+                                                                                bslib::accordion_panel(title = "Advanced Alleles/genotypes settings", value = "advsetgs",
+                                                                                                       h4("Alleles"),
+                                                                                                       selectizeInput("snp_x_allele","X Allele", choices = c("A","C","G","T","-","X"), selected="X"),
+                                                                                                       selectizeInput("snp_y_allele","Y Allele", choices = c("A","C","G","T","-","Y"), selected="Y"),
+                                                                                                       h4("Genotypes"),
+                                                                                                       numericInput("ploidy","Ploidy", value = 2, min = 1,max = 5, step = 1),
+                                                                                                       selectizeInput("allele_sep", "Allele separator",choices=c(":","/","|"), selected = ":"))
+                                                               ),
+                                        ),
+
+                                        div(style="display: flex;
+                                                    gap: 10px;
+                                                    align-items: center;",
+                                            actionButton("prevsnp", "<",style='padding:2px; font-size:100%'),
+                                            plotlyOutput("plot", width = 800, height = 600),
+                                            actionButton("nextsnp", ">",style='padding:2px; font-size:100%')),
+                                            bslib::accordion(id = "highlight_samples", open = FALSE,
+                                                             bslib::accordion_panel(title = "Highlight samples", value = "highlsampl",
+
+                                                                                    #bsCollapse(id="samples_selection", open=NULL,
+                                                                                    #bsCollapsePanel(title = "Highlight samples", style="primary",
+                                                                                    actionButton(inputId = "samples.clearsel", label = "Deselect all"),
+                                                                                    dataTableOutput('samples', height = 80)
+                                                             ))
+                                      )
+                     ),
+                     bslib::nav_spacer(),
+                     bslib::nav_panel("About",
+                                      h2(a("github",href="https://github.com/jframi/snpclust", target="_blank", icon("github")), align="right"),
+                                      h1("snpclust"),
+                                      img(src='sticker.png', height="10%", width="10%",  align = "right"),
+                                      p("snpclust aims at visualizing and manually correct clustering of fluorescence based SNP markers."),
+                                      p("It can load data from any kind of text files, or load data from a BrAPI endpoint."),
+                                      h2("Contributors"),
+                                      p("Jean-François Rami (Maintainer) - rami 'at' cirad.fr"),
+                                      p("Alice Boizet (Author) - alice.boizet 'at' cirad.fr"),
+                                      img(src='CIRAD_logo.png', height="15%", width="15%",  align = "left")
+                     ))
 )
 
-#### SERVER ####
+# SERVER ####
 server <- function(input, output, session) {
   #callModule(profvis_server, "profiler")
+  #####
   values <- reactiveValues(df_data = NULL,
                            newdf = NULL,
                            samplesdfd = NULL,
@@ -279,7 +356,11 @@ server <- function(input, output, session) {
                            study_dbid=NULL,
                            currentSNP=NULL,
                            targetSNP=NULL,
-                           confirmchangeSNP="none")
+                           loadfromBrAPIurl=FALSE,
+                           loadfromBrAPI=FALSE,
+                           loadfromFile=TRUE,
+                           confirmchangeSNP="none",
+                           brapisupport=brapisupport)
   output$subtitle <- renderText("snpclust")
   output$title_navbar = renderUI(div(img(src="sticker.png", width="60px")))#renderText("snpclust")
 
@@ -303,12 +384,29 @@ server <- function(input, output, session) {
       updateSelectizeInput(session = session, inputId = "SNP", selected = values$snpinfos$SNPID[which(values$snpinfos$SNPID==input$SNP)-1])
     }
   })
+  observe({
+    if (values$loadfromBrAPIurl || values$loadfromBrAPI){
+      if (!is.null(values$mainbrapiprogram)){
+        output$exportData <- renderUI({
+          actionButton(inputId = "pushtobrapi",label = paste0("Save data to ",values$mainbrapiprogram), icon = icon(name = "cloud-upload-alt"))
+        })
+      } else {
+        output$exportData <- renderUI({
+          actionButton(inputId = "pushtobrapi",label = paste0("Save data to BrAPI endpoint"), icon = icon(name = "cloud-upload-alt"))
+        })
+      }
+    } else {
+      output$exportData <- renderUI({
+        downloadButton('downloadData', 'Download recoded file')
+      })
+    }
+  })
   observeEvent(parse_GET_param(),{
     values$main_token <- parse_GET_param()$maintoken
     values$bms_token <- parse_GET_param()$bmstoken
     values$brapi_endpoint_name <- parse_GET_param()$brapiendpointname
-      ### set up connection
-      #parsed_url <- parse_api_url(parse_GET_param()$apiURL)
+    ### set up connection
+    #parsed_url <- parse_api_url(parse_GET_param()$apiURL)
     if (!is.null(values$main_token)){
       updateTextInput(session = session, inputId = "mainbrapitoken", value =  values$main_token)
     }
@@ -337,7 +435,7 @@ server <- function(input, output, session) {
         output$exportData <- renderUI({
           actionButton(inputId = "pushtobrapi",label = paste0("Save data to ",values$mainbrapiprogram), icon = icon(name = "cloud-upload-alt"))
         })
-
+        #
       }
       if (!is.null(parse_GET_param()$mainbrapistudy)){
         values$study_dbid <- parse_GET_param()$mainbrapistudy
@@ -363,26 +461,41 @@ server <- function(input, output, session) {
         }else{
           output$retrieve_variants_res = renderText({paste("Found", nrow(values$brapi_variants), "variants:", paste(values$brapi_variants$variantNames[1:10],collapse = ", "), "...")})
         }
-        hideTab(inputId = "tabsetId", target = "load")
-        hideTab(inputId = "tabsetId", target = "samples")
-        hideTab(inputId = "tabsetId", target = "match")
-          output$title_navbar <- renderUI(list(div(div(img(src="sticker.png", width="60px")),
-                                          div(HTML(paste0("<p style='font-size:10px; '><br/><br/>connected via BrAPI<br/>endpoint: ",
-                                                          paste0(parsed_url$brapi_protocol,parsed_url$brapi_db),
-                                                          "<br/>program: ",
-                                                          values$mainbrapiprogram,
-                                                          "<br/>study: ",
-                                                          values$study_name,
-                                                          "</p>"))), style="display:flex")))
+        hideTab(session = session, inputId = "tabsetId", target = "load")
+        hideTab(session = session, inputId = "tabsetId", target = "samples")
+        hideTab(session = session, inputId = "tabsetId", target = "match")
+        output$title_navbar <- renderUI(list(div(div(img(src="sticker.png", width="60px")),
+                                                 div(HTML(paste0("<p style='font-size:10px; margin-bottom: 0.5rem; margin-top: unset; '><br/><br/>connected via BrAPI<br/>endpoint: ",
+                                                                 paste0(parsed_url$brapi_protocol,parsed_url$brapi_db),
+                                                                 "<br/>program: ",
+                                                                 values$mainbrapiprogram,
+                                                                 "<br/>study: ",
+                                                                 values$study_name,
+                                                                 "</p>"), style="margin-bottom: 1rem;")),
+                                                 style="display:flex;
+                                                          align-items: center;
+                                                          gap: 10px;
+                                                          color: rgb(255, 255, 255);")))
         updateNavbarPage(inputId = "tabsetId", selected = "clust")
         brapisupport <<- TRUE
         #updateSwitchInput(session = session, inputId = "brapiorfile", value = TRUE)
-        updateCollapse(session, id="loadfrom", open="From BrAPI", close = "From file")
+        #browser()
+        values$loadfromBrAPIurl <- TRUE
+        values$loadfromFile <- FALSE
+        updateCollapse(session = session, id="loadfrom", open="From BrAPI", close = "From file")
       }
 
     }
   })
-
+  observe({
+    if (!values$brapisupport){
+      output$warn_brapi <- renderText("To use BrAPI end-points, a list of brapi connections needs to be defined with options(brapi.cons= list(Connection1= brapir::brapi_connect(...))) before running the app")
+      output$warn_brapi_samples <- renderText("To use BrAPI end-points, a list of brapi connections needs to be defined with options(brapi.cons= list(Connection1= brapir::brapi_connect(...))) before running the app")
+    } else {
+      output$warn_brapi <- renderText(NULL)
+      output$warn_brapi_samples <- renderText(NULL)
+    }
+  })
 
   observeEvent(input$lc,{
     if (input$lc){
@@ -394,8 +507,8 @@ server <- function(input, output, session) {
     }
   })
 
-#  "mainbrapiendpoint"
-#  "mainbrapitoken"
+  #  "mainbrapiendpoint"
+  #  "mainbrapitoken"
   #observeEvent(input$brapiorfile,{
   #  if (input$brapiorfile){
   #    if(input$loadfrom=="From file"){
@@ -417,46 +530,52 @@ server <- function(input, output, session) {
   #    output$exportData <- renderUI({
   #      downloadButton('downloadData', 'Download recoded file')
   #    })
-#
+  #
   #    showTab(inputId = "tabsetId", target = "samples")
   #    showTab(inputId = "tabsetId", target = "match")
   #  }
   #})
-  observeEvent(input$loadfrom,{
-    if(input$loadfrom=="From file"){
-      showTab(inputId = "tabsetId", target = "samples")
-      showTab(inputId = "tabsetId", target = "match")
-      output$exportData <- renderUI({
-        downloadButton('downloadData', 'Download recoded file')
-      })
-
-    }
-    if(input$loadfrom=="From BrAPI"){
-      hideTab(inputId = "tabsetId", target = "samples")
-      hideTab(inputId = "tabsetId", target = "match")
-      if (!is.null(values$mainbrapiprogram)){
-        output$exportData <- renderUI({
-          actionButton(inputId = "pushtobrapi",label = paste0("Save data to ",values$mainbrapiprogram), icon = icon(name = "cloud-upload-alt"))
-        })
-      }else{
-        output$exportData <- renderUI({
-          actionButton(inputId = "pushtobrapi",label = "Save data to BrAPI endpoint", icon = icon(name = "cloud-upload-alt"))
-        })
-      }
-      if (!brapisupport){
-        showNotification("To use BrAPI end-points, a list of brapi connections needs to be defined with options(brapi.cons= list(Connection1= brapirv2::brapi_connect(...))) before running the app", type="error",closeButton = TRUE, duration = NULL)
-        #updateSwitchInput(session = session, inputId = "brapiorfile", value = FALSE)
-      }
-
-    }
-  })
+  #observeEvent(input$Open_from, {
+  #  browser()
+  #})
+  #observeEvent(input$loadfrom,{
+  #  #browser()
+  #  if(input$loadfrom=="From file" & !values$loadfromBrAPIurl){
+  #    showTab(inputId = "tabsetId", target = "samples")
+  #    showTab(inputId = "tabsetId", target = "match")
+  #    #values$loadfrom <- "From file"
+  #    output$exportData <- renderUI({
+  #      downloadButton('downloadData', 'Download recoded file')
+  #    })
+  #
+  #  }
+  #  if(input$loadfrom=="From BrAPI" & !values$loadfromBrAPIurl){
+  #    hideTab(inputId = "tabsetId", target = "samples")
+  #    hideTab(inputId = "tabsetId", target = "match")
+  #    #values$loadfrom <- "From BrAPI"
+  #    if (!is.null(values$mainbrapiprogram)){
+  #      output$exportData <- renderUI({
+  #        actionButton(inputId = "pushtobrapi",label = paste0("Save data to ",values$mainbrapiprogram), icon = icon(name = "cloud-upload-alt"))
+  #      })
+  #    }else{
+  #      output$exportData <- renderUI({
+  #        actionButton(inputId = "pushtobrapi",label = "Save data to BrAPI endpoint", icon = icon(name = "cloud-upload-alt"))
+  #      })
+  #    }
+  #    if (!brapisupport){
+  #      showNotification("To use BrAPI end-points, a list of brapi connections needs to be defined with options(brapi.cons= list(Connection1= brapirv2::brapi_connect(...))) before running the app", type="error",closeButton = TRUE, duration = NULL)
+  #      #updateSwitchInput(session = session, inputId = "brapiorfile", value = FALSE)
+  #    }
+  #
+  #  }
+  #})
   observeEvent(input$connect_brapi,{
 
     if (input$mainbrapiendpoint!=""){
       values$maincon <- options()$brapi.cons[[input$mainbrapiendpoint]]
       values$maincon$token <- input$mainbrapitoken
       brapidbs <<- tryCatch(brapirv2::brapi_get_programs(values$maincon),
-                         error=function(e) e)
+                            error=function(e) e)
       # For offline testing
       #progs <<- data.table(name="toto")
       if ("error"%in%class(brapidbs)){
@@ -474,14 +593,14 @@ server <- function(input, output, session) {
 
   observeEvent(input$brapi_program,{
     if (input$mainbrapiendpoint!=""  & input$brapi_program!=""){
-    #values$maincon <<- options()$brapi.cons[[input$mainbrapiendpoint]]
-    #values$maincon$token <<- input$mainbrapitoken
-    brapi_studies <<- tryCatch(brapirv2::brapi_get_studies(values$maincon, trialDbId=input$brapi_program),
-                                  error=function(e) e)
-    updateSelectizeInput(session, "brapi_study",choices = brapi_studies$studyName, selected = NULL)
-    output$exportData <- renderUI({
-      actionButton(inputId = "pushtobrapi",label = paste0("Save data to ",input$brapi_program), icon = icon(name = "cloud-upload-alt"))
-    })
+      #values$maincon <<- options()$brapi.cons[[input$mainbrapiendpoint]]
+      #values$maincon$token <<- input$mainbrapitoken
+      brapi_studies <<- tryCatch(brapirv2::brapi_get_studies(values$maincon, trialDbId=input$brapi_program),
+                                 error=function(e) e)
+      updateSelectizeInput(session, "brapi_study",choices = brapi_studies$studyName, selected = NULL)
+      output$exportData <- renderUI({
+        actionButton(inputId = "pushtobrapi",label = paste0("Save data to ",input$brapi_program), icon = icon(name = "cloud-upload-alt"))
+      })
     }
   })
 
@@ -494,20 +613,27 @@ server <- function(input, output, session) {
       values$brapi_variantsetsIds <- unique(values$brapi_variantsets$variantSetDbId)
       values$brapi_variantsetsIds <- values$brapi_variantsetsIds[!is.na(values$brapi_variantsetsIds)]
       values$brapi_variants <<- do.call(rbind,
-                                 lapply(values$brapi_variantsetsIds,
-                                        function(a) tryCatch({
-                                          # this is a patch to variantSetDbId field missing in gigwa's get variants response
-                                          data.table(variantSetDbId=a,brapirv2::brapi_get_variants(values$maincon, variantSetDbId = htmltools::urlEncodePath(a), pageSize = max_brapi_snp_number))
-                                          },error=function(e) e)
-                                 )
+                                        lapply(values$brapi_variantsetsIds,
+                                               function(a) tryCatch({
+                                                 # this is a patch to variantSetDbId field missing in gigwa's get variants response
+                                                 data.table(variantSetDbId=a,brapirv2::brapi_get_variants(values$maincon, variantSetDbId = htmltools::urlEncodePath(a), pageSize = max_brapi_snp_number))
+                                               },error=function(e) e)
+                                        )
       )
       values$snpinfos <- values$brapi_variants[,.(SNPID=variantNames, AlleleX=referenceBases, AlleleY=alternateBases)]
       #updateSelectizeInput(session, inputId = "SNP", choices = data.frame(label=brapi_variants$variantNames, value=brapi_variants$variantDbId), server = T)
       updateSelectizeInput(session, inputId = "SNP", choices = values$brapi_variants$variantNames, server = T, selected = "")
-      if (nrow(values$brapi_variants)==max_brapi_snp_number){
-        output$retrieve_variants_res = renderUI(HTML(paste("Found more than ",max_brapi_snp_number," variants:", paste(values$brapi_variants$variantNames[1:10],collapse = ", "), "...</br>", "Keeping only the first ",max_brapi_snp_number," variants")))
-      }else{
-        output$retrieve_variants_res = renderText({paste("Found", nrow(values$brapi_variants), "variants:", paste(values$brapi_variants$variantNames[1:10],collapse = ", "), "...")})
+      if (nrow(values$brapi_variants)>0){
+        values$loadfromBrAPI <- TRUE
+        values$loadfromFile <- FALSE
+        hideTab(inputId = "tabsetId", target = "samples")
+        hideTab(inputId = "tabsetId", target = "match")
+        if (nrow(values$brapi_variants)==max_brapi_snp_number){
+          output$retrieve_variants_res = renderUI(HTML(paste("Found more than ",max_brapi_snp_number," variants:", paste(values$brapi_variants$variantNames[1:10],collapse = ", "), "...</br>", "Keeping only the first ",max_brapi_snp_number," variants")))
+        }else{
+          output$retrieve_variants_res = renderText({paste("Found", nrow(values$brapi_variants), "variants:", paste(values$brapi_variants$variantNames[1:10],collapse = ", "), "...")})
+        }
+
       }
     }
   })
@@ -527,11 +653,14 @@ server <- function(input, output, session) {
         updateNumericInput(session, "skip", value =  0)
       }
       df<-fread(inFile$datapath, header = input$header,
-                     sep = input$sep, quote = input$quote, skip = input$skip, dec = input$dec, stringsAsFactors = F)
+                sep = input$sep, quote = input$quote, skip = input$skip, dec = input$dec, stringsAsFactors = F)
 
       if(!valid_file(df,input$lc)){
         showModal(modalDialog("File doesn't look like a LightCycler file"))
       } else{
+        values$loadfromFile <- TRUE
+        values$loadfromBrAPI <- FALSE
+
         if (input$lc){
           df<-df[EPF!="-"]
           df$EPF<-as.numeric(df$EPF)
@@ -555,24 +684,24 @@ server <- function(input, output, session) {
     }
   })
   observeEvent(input$connect_bms,{
-      bmscon <<- options()$brapi.cons[[input$bmsendpoint]]
-      if (!is.null(input$bmstoken)){
-        bmscon$token <<- input$bmstoken
-        progs <<- tryCatch(setDT(brapirv2::brapi_get_programs(bmscon, commonCropName = bmscon$commoncropname)),
-                           error=function(e) e)
-        if ("error"%in%class(progs)){
-          output$connect_res = renderText({paste("<span style=\"color:red\">Connection failed</span>")})
-        }else {
-          output$connect_res = renderText({paste("<span style=\"color:green\">Connection succeeded</span>")})
-          updateSelectizeInput(session, "program",choices = progs$programName, selected = progs$programName[1])
-        }
+    bmscon <<- options()$brapi.cons[[input$bmsendpoint]]
+    if (!is.null(input$bmstoken)){
+      bmscon$token <<- input$bmstoken
+      progs <<- tryCatch(setDT(brapirv2::brapi_get_programs(bmscon, commonCropName = bmscon$commoncropname)),
+                         error=function(e) e)
+      if ("error"%in%class(progs)){
+        output$connect_res = renderText({paste("<span style=\"color:red\">Connection failed</span>")})
+      }else {
+        output$connect_res = renderText({paste("<span style=\"color:green\">Connection succeeded</span>")})
+        updateSelectizeInput(session, "program",choices = progs$programName, selected = progs$programName[1])
       }
-    })
+    }
+  })
   observe({
     if (input$program!=""){
       #selprogUUID <- progs[programName==input$program,programDbId]
       #samplelists <<- bmsapi_Get_sample_list_search(bmscon, crop = bmscon$commoncropname, programUUID = selprogUUID)
-  #    updateSelectizeInput(session, "sample_list",choices = samplelists$listName)
+      #    updateSelectizeInput(session, "sample_list",choices = samplelists$listName)
     }
   })
   observeEvent(input$fetch_samples,{
@@ -594,27 +723,27 @@ server <- function(input, output, session) {
       #     samples <- rbind(samples,samp)
       #   }
       # }
-        sidslookup <- unique(values$df_data$SubjectID)
-        sidslookup <- sidslookup[sidslookup!=""]
-        sampsrchid <- brapi_post_search_samples(con = bmscon, sampleDbIds = sidslookup)
-        samps <- brapi_get_search_samples_searchResultsDbId(con = bmscon, searchResultsDbId = sampsrchid$searchResultsDbId)
-        nbpages <- attr(samps, which = "pagination")$totalPages
-        if (nbpages > 1){
-          samps <- rbind(samps, do.call(rbind,
-                                        lapply(1:(nbpages-1),
-                                               function(p) brapi_get_search_samples_searchResultsDbId(con = bmscon, searchResultsDbId = sampsrchid$searchResultsDbId, page = p)
-                                               )
-                                        )
-          )
-        }
-        setDT(samps)
-        samples <- unique(samps[,.(sampleDbId,sampleName,germplasmDbId)])
+      sidslookup <- unique(values$df_data$SubjectID)
+      sidslookup <- as.character(sidslookup[sidslookup!=""])
+      sampsrchid <- brapi_post_search_samples(con = bmscon, sampleDbIds = sidslookup)
+      samps <- brapi_get_search_samples_searchResultsDbId(con = bmscon, searchResultsDbId = sampsrchid$searchResultsDbId)
+      nbpages <- attr(samps, which = "pagination")$totalPages
+      if (nbpages > 1){
+        samps <- rbind(samps, do.call(rbind,
+                                      lapply(1:(nbpages-1),
+                                             function(p) brapi_get_search_samples_searchResultsDbId(con = bmscon, searchResultsDbId = sampsrchid$searchResultsDbId, page = p)
+                                      )
+        )
+        )
+      }
+      setDT(samps)
+      samples <- unique(samps[,.(sampleDbId,sampleName,germplasmDbId)])
     }
-      dfd<-unique(data.table(values$df_data)[,.(SubjectID, Found=FALSE)])
-      samplesdfd<-samples[dfd, on=c(sampleDbId="SubjectID")]
-      samplesdfd[!is.na(germplasmDbId), Found:=TRUE]
-      output$update_samp_res = renderText({paste("<span style=\"color:green\">",nrow(samplesdfd[!is.na(germplasmDbId)]),"samples found out of ",nrow(samplesdfd)," samples. Use the 'Found' column to identify missing samples</span>")})
-      values$samplesdfd <- samplesdfd
+    dfd<-unique(data.table(values$df_data)[,.(SubjectID, Found=FALSE)])
+    samplesdfd<-samples[dfd, on=c(sampleDbId="SubjectID")]
+    samplesdfd[!is.na(germplasmDbId), Found:=TRUE]
+    output$update_samp_res = renderText({paste("<span style=\"color:green\">",nrow(samplesdfd[!is.na(germplasmDbId)]),"samples found out of ",nrow(samplesdfd)," samples. Use the 'Found' column to identify missing samples</span>")})
+    values$samplesdfd <- samplesdfd
   })
 
   #observeEvent(input$special_samples,{
@@ -647,8 +776,8 @@ server <- function(input, output, session) {
                                                             #                                      var table = $('.dataTable').DataTable();
                                                             #                                      table.rows({ search: 'applied'}).select();
                                                             #                                      table.rows({ search: 'applied'}).deselect();}")))
-                                                            )
-                                                          ), server = TRUE)
+                                                          )
+      ), server = TRUE)
       dtproxy <<- dataTableProxy('samples')
     }
   })
@@ -724,6 +853,7 @@ server <- function(input, output, session) {
     }
     values$newdf<-temp
     updateSelectizeInput(session, "Plate",choices = sort(unique(temp$Plate)))
+    #updatePickerInput(session, "Plate",choices = sort(unique(temp$Plate)))
     updateSelectizeInput(session, "SNP",choices = sort(unique(temp$SNP)))
     updateNavbarPage(session, "tabsetId", selected = "clust")
     if (input$intertek_guess){
@@ -753,7 +883,8 @@ server <- function(input, output, session) {
   observeEvent(input$Plate,{
     temp<-values$newdf
     selSNP<-input$SNP
-    if (input$loadfrom=="From BrAPI"){
+    #if (input$loadfrom=="From BrAPI" || values$loadfromBrAPIurl){
+    if (values$loadfromBrAPI || values$loadfromBrAPIurl){
       if (!is.null(input$Plate)){
         if (input$SNP!=""){
           values$toplot<-values$newdf[values$newdf$SNP==selSNP & values$newdf$Plate%in%input$Plate,]
@@ -775,6 +906,7 @@ server <- function(input, output, session) {
       } else{
         updateSelectizeInput(session, "SNP",selected=selSNP , choices = unique(temp[,"SNP"]),label = "SNP")
         updateSelectizeInput(session, "Plate" , choices = unique(temp[,"Plate"]))
+        #updatePickerInput(session, "Plate" , choices = unique(temp[,"Plate"]))
         if (input$SNP!=""){
           values$toplot<-values$newdf[values$newdf$SNP==input$SNP,]
         }
@@ -794,13 +926,13 @@ server <- function(input, output, session) {
   })
 
   observeEvent(c(input$SNP,input$confirmchangeSNP),{
-    if (values$confirmchangeSNP=="none" & input$loadfrom=="From BrAPI" & !all(values$newdf[,"NewCall"]=="Unknown") & any(!values$newdf[,"Call"]==values$newdf[,"NewCall"])){
+    if (values$confirmchangeSNP=="none" & values$loadfromBrAPI & !all(values$newdf[,"NewCall"]=="Unknown") & any(!values$newdf[,"Call"]==values$newdf[,"NewCall"])){
       values$targetSNP <- input$SNP
       showModal(modalDialog(
         "Some SNP calls have been changed. Changing to a different SNP without saving will discard changes. Are you sure you want to proceed?",
-          footer = tagList(actionButton("confirmchangeSNP", "Yes"),
-                           actionButton("cancelchangeSNP", "Cancel")
-          )
+        footer = tagList(actionButton("confirmchangeSNP", "Yes"),
+                         actionButton("cancelchangeSNP", "Cancel")
+        )
       ))
     } else {
       if (values$confirmchangeSNP!="cancel"){
@@ -809,11 +941,13 @@ server <- function(input, output, session) {
         values$currentSNP <- input$SNP
         if (input$SNP!=""){
           updateSelectizeInput(session, "Plate", selected=selplate, choices = sort(unique(temp[temp$SNP==input$SNP,"Plate"])),label = paste("Plate (SNP:",input$SNP,")",sep=""))
+          #updatePickerInput(session, "Plate", selected=selplate, choices = sort(unique(temp[temp$SNP==input$SNP,"Plate"])),label = paste("Plate (SNP:",input$SNP,")",sep=""))
         } else{
           updateSelectizeInput(session, "Plate", selected=selplate, choices = sort(unique(temp[,"Plate"])),label = "Plate")
+          #updatePickerInput(session, "Plate", selected=selplate, choices = sort(unique(temp[,"Plate"])),label = "Plate")
         }
         if (input$SNP!=""){
-          if (input$loadfrom=="From BrAPI"){
+          if (values$loadfromBrAPI || values$loadfromBrAPIurl){
             brapi_variantsets <<- tryCatch(brapirv2::brapi_get_variantsets(values$maincon, studyDbId =  htmltools::urlEncodePath(values$study_dbid)), error=function(e) e)
             setDT(brapi_variantsets)
             brapi_variantsetsIds <- unique(brapi_variantsets$variantSetDbId)
@@ -909,7 +1043,7 @@ server <- function(input, output, session) {
       }
       values$confirmchangeSNP <- "none"
     }
-    })
+  })
 
   observeEvent(input$snp_x_allele,{
     if (!is.null(values$snpinfos)){
@@ -936,8 +1070,9 @@ server <- function(input, output, session) {
         values$recols <- c(values$recols, NTC="#E54FFF", Unknown="grey40")
       })
       scorebts$ui <- lapply(rev(values$genots), function(g) list(actionButton(inputId = paste0("scoreb",gsub(input$allele_sep,"",g)),
-                                                                         label = paste0("Score as ",paste(unlist(strsplit(g, split = "")), collapse = input$allele_sep)),
-                                                                         style=paste0("color: #fff; background-color: ",values$recols[[which(values$genots==g)]],"; border-color: ",values$recols[[which(values$genots==g)]]))))
+                                                                              label = paste0("Score as ",paste(unlist(strsplit(g, split = "")), collapse = input$allele_sep)),
+                                                                              class="btn text-nowrap",
+                                                                              style=paste0("color: #fff; background-color: ",values$recols[[which(values$genots==g)]],"; border-color: ",values$recols[[which(values$genots==g)]]))))
       output$score_buttons <- renderUI({scorebts$ui})
     }
   })
@@ -950,8 +1085,8 @@ server <- function(input, output, session) {
       inputBtn <- paste0("scoreb", values$genots)
       #o(lapply(values$genots, function(x){
       o(lapply(inputBtn, function(x){
-          #observeEvent(input[[paste0("scoreb", gsub(input$allele_sep,"",x))]],{
-          observeEvent(input[[x]],{
+        #observeEvent(input[[paste0("scoreb", gsub(input$allele_sep,"",x))]],{
+        observeEvent(input[[x]],{
           d <- event_data("plotly_selected")
           temp<-values$newdf
           g <- gsub("scoreb","",x)
@@ -1096,13 +1231,13 @@ server <- function(input, output, session) {
             # }else{
             #   p <- ggplot(values$toplot[values$toplot$Plate%in%input$Plate & values$toplot$SNP==input$SNP,],aes(x=Theta, y=R, colour=Call, key= snpclustId, text=paste("Sample:",SampName))) +  geom_point()+ aes(shape=Special) + scale_shape_manual(values =c(Standard=16,Special=11), name="")  #+facet_wrap(~Experiment_Name,ncol = 2)
             # }
-            if (input$whichcall2==FALSE){
+            if (input$whichcall2=="New call"){
               #cols <- c("Allele_X" = "#3CB371FF", "Allele_Y" = "#DC143CFF", "Both_Alleles" = "#337AB7FF", "NA" = "#FF7F50FF", "Negative"="#808080FF")
               #names(cols) <- c(values$xcall,values$ycall,values$hcall,"NA", "Negative" )
               #if(any(colnames(values$toplot)=="Special")){
               #  p <- ggplot(values$toplot,aes(x=Theta, y=R, colour=NewCall, key = snpclustId, text=paste(paste("Sample:",SampName),paste("Call:",Call), sep="\n"))) + geom_point()+ aes(shape=Special) + scale_shape_manual(values = c(Standard=16,Special=11), name="") #+facet_wrap(~Experiment_Name,ncol = 2)
               #}else{
-                p <- ggplot(values$toplot,aes(x=Theta, y=R, colour=NewCall, key = snpclustId, text=paste(paste("Sample:",SampName),paste("Call:",Call), sep="\n")))+ geom_point()
+              p <- ggplot(values$toplot,aes(x=Theta, y=R, colour=NewCall, key = snpclustId, text=paste(paste("Sample:",SampName),paste("Call:",Call), sep="\n")))+ geom_point()
               #}
               p <- p +  scale_colour_manual(values = values$recols, na.value = "#FF7F50FF")
             }else{
@@ -1110,8 +1245,8 @@ server <- function(input, output, session) {
               #  p <- ggplot(values$toplot,aes(x=Theta, y=R, colour=Call, key = snpclustId, text=paste(paste("Sample:",SampName),paste("NewCall:",NewCall), sep="\n"))) +  geom_point()+ aes(shape=Special) + scale_shape_manual(values = c(Standard=16,Special=11), name="")  + coord_fixed(ratio = 1,xlim = c(0,maxfluo), ylim = c(0,maxfluo)) #+facet_wrap(~Experiment_Name,ncol = 2)
               #  p <- p + scale_colour_manual(values = values$cols, na.value = "#FF7F50FF")
               #}else{
-                p <- ggplot(values$toplot,aes(x=Theta, y=R, colour=Call, key = snpclustId, text=paste(paste("Sample:",SampName),paste("NewCall:",NewCall), sep="\n"))) +  geom_point()   #+facet_wrap(~Experiment_Name,ncol = 2)
-                p <- p + scale_colour_manual(values = values$cols, na.value = "#FF7F50FF")
+              p <- ggplot(values$toplot,aes(x=Theta, y=R, colour=Call, key = snpclustId, text=paste(paste("Sample:",SampName),paste("NewCall:",NewCall), sep="\n"))) +  geom_point()   #+facet_wrap(~Experiment_Name,ncol = 2)
+              p <- p + scale_colour_manual(values = values$cols, na.value = "#FF7F50FF")
               #}
             }
 
@@ -1132,13 +1267,13 @@ server <- function(input, output, session) {
           maxfluo<-max(c(values$toplot$X.Fluor,values$toplot$Y.Fluor))
           minfluo<-min(c(values$toplot$X.Fluor,values$toplot$Y.Fluor))
           output$plot <- renderPlotly({
-            if (input$whichcall2==FALSE){
+            if (input$whichcall2=="New call"){
 
               #names(cols) <- c(values$xcall,values$ycall,values$hcall,"NA", "Negative" )
               #if(any(colnames(values$toplot)=="Special")){
               #  p <- ggplot(values$toplot,aes(x=X.Fluor, y=Y.Fluor, colour=NewCall, key = snpclustId, text=paste("Sample:",SampName)))+ geom_point()+ aes(shape=Special) + scale_shape_manual(values = c(Standard=16,Special=11), name="") #+facet_wrap(~Experiment_Name,ncol = 2)
               #}else{
-                p <- ggplot(values$toplot,aes(x=X.Fluor, y=Y.Fluor, colour=NewCall, key = snpclustId, text=paste("Sample:",SampName)))+ geom_point()
+              p <- ggplot(values$toplot,aes(x=X.Fluor, y=Y.Fluor, colour=NewCall, key = snpclustId, text=paste("Sample:",SampName)))+ geom_point()
               #}
               if (input$fixed_ratio){
                 p <- p + coord_fixed(ratio = 1, xlim = c(0,maxfluo), ylim = c(0,maxfluo))
@@ -1153,11 +1288,11 @@ server <- function(input, output, session) {
               #  }
               #  p <- p + scale_colour_manual(values = values$cols, na.value = "#FF7F50FF")
               #}else{
-                p <- ggplot(values$toplot,aes(x=X.Fluor, y=Y.Fluor, colour=Call, key = snpclustId, text=paste("Sample:",SampName))) +  geom_point()
-                if (input$fixed_ratio){
-                  p <- p + coord_fixed(ratio = 1, xlim = c(0,maxfluo), ylim = c(0,maxfluo))
-                }
-                p <- p + scale_colour_manual(values = values$cols, na.value = "#FF7F50FF")
+              p <- ggplot(values$toplot,aes(x=X.Fluor, y=Y.Fluor, colour=Call, key = snpclustId, text=paste("Sample:",SampName))) +  geom_point()
+              if (input$fixed_ratio){
+                p <- p + coord_fixed(ratio = 1, xlim = c(0,maxfluo), ylim = c(0,maxfluo))
+              }
+              p <- p + scale_colour_manual(values = values$cols, na.value = "#FF7F50FF")
 
               #}
             }
@@ -1170,7 +1305,7 @@ server <- function(input, output, session) {
       }else{
         output$plot <- renderPlotly({NULL})
       }
-      }
+    }
   })
   observeEvent(input$samples.clearsel,{
     selectRows(dtproxy, selected=NULL)
