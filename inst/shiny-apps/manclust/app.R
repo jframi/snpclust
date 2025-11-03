@@ -42,7 +42,7 @@ ui <- fluidPage(#theme = shinytheme("flatly"),
   ## Theme customization ####
   theme = bs_theme(preset = "sandstone", version = 5) |> bs_add_rules("
   :root {
-   --bslib-spacer: 0.5rem;
+   --bslib-spacer: 0.8rem;
    --bslib-mb-spacer: var(--bslib-spacer, 0.5rem);
   }
   /* Customize navbar */
@@ -289,8 +289,9 @@ ui <- fluidPage(#theme = shinytheme("flatly"),
                                                                uiOutput("score_buttons"),
                                                                actionButton(inputId = "updateU", label = "Score as Missing", style="color: #fff; background-color: #ff7f50; border-color: #ff7f50"),#br(),br(),
                                                                actionButton(inputId = "updateN", label = "Score as NTC", style="color: #fff; background-color: #E54FFF; border-color: #E54FFF")
-                                                               ),br(),br(),
+                                                               ),
                                                                uiOutput("exportData"),
+                                                               hr(),
                                                                bslib::accordion(id = "adv_allgeno_settings", open = FALSE,
                                                                                 bslib::accordion_panel(title = "Advanced Alleles/genotypes settings", value = "advsetgs",
                                                                                                        h4("Alleles"),
@@ -305,9 +306,9 @@ ui <- fluidPage(#theme = shinytheme("flatly"),
                                         div(style="display: flex;
                                                     gap: 10px;
                                                     align-items: center;",
-                                            actionButton("prevsnp", "<",style='padding:2px; font-size:100%'),
+                                            actionButton("prevsnp", "←",style='padding:2px; font-size:100%'),
                                             plotlyOutput("plot", width = 800, height = 600),
-                                            actionButton("nextsnp", ">",style='padding:2px; font-size:100%')),
+                                            actionButton("nextsnp", "→",style='padding:2px; font-size:100%')),
                                             bslib::accordion(id = "highlight_samples", open = FALSE,
                                                              bslib::accordion_panel(title = "Highlight samples", value = "highlsampl",
 
