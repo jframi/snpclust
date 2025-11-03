@@ -247,7 +247,7 @@ ui <- fluidPage(#theme = shinytheme("flatly"),
                                       #
                                       #checkboxInput('header', 'Header', TRUE),
                                       #numericInput(inputId = 'skip',label = 'Number of lines to skip',value = 0)),
-                                      tags$hr()
+                                      #tags$hr()
                                       )
 
                      ),
