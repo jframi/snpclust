@@ -40,7 +40,7 @@ valid_file<-function(df,lc){
 # UI ####
 ui <- fluidPage(#theme = shinytheme("flatly"),
   ## Theme customization ####
-  theme = bs_theme(preset = "sandstone", version = 5) |> bs_add_rules("
+  theme = bslib::bs_theme(preset = "sandstone", version = 5) |> bslib::bs_add_rules("
   :root {
    --bslib-spacer: 0.8rem;
    --bslib-mb-spacer: var(--bslib-spacer, 0.5rem);
