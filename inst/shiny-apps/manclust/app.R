@@ -483,7 +483,6 @@ server <- function(input, output, session) {
         #browser()
         values$loadfromBrAPIurl <- TRUE
         values$loadfromFile <- FALSE
-        updateCollapse(session = session, id="loadfrom", open="From BrAPI", close = "From file")
       }
 
     }
