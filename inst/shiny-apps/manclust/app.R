@@ -226,7 +226,7 @@ ui <- fluidPage(#theme = shinytheme("flatly"),
                                           textOutput(outputId = "warn_brapi_samples")
                                       ),
                                       bslib::layout_columns(col_widths = c(3,9),
-                                      card(selectizeInput("bmsendpoint","BMS end point", choices = brapi_connections),
+                                      bslib::card(selectizeInput("bmsendpoint","BMS end point", choices = brapi_connections),
                                              passwordInput("bmstoken","BMS token"),
                                              actionButton("connect_bms","Connect"),
                                              htmlOutput("connect_res"),
@@ -238,7 +238,7 @@ ui <- fluidPage(#theme = shinytheme("flatly"),
                                              #checkboxInput('loop_over_progs', 'Search in all programs', FALSE),
                                              actionButton("fetch_samples","Fetch samples information")
                                       ),
-                                      card(height = "700px", dataTableOutput("samples_info",height = "600px"),
+                                      bslib::card(height = "700px", dataTableOutput("samples_info",height = "600px"),
                                              #div(style="display: inline-block;vertical-align:top;",actionButton("special_samples","Toggle selected as special samples")),
                                              div(style="display: inline-block;vertical-align:top;",actionButton("update_samples","Update samples information")),
                                              htmlOutput("update_samp_res")),
@@ -742,6 +742,7 @@ server <- function(input, output, session) {
     dfd<-unique(data.table(values$df_data)[,.(SubjectID, Found=FALSE)])
     samplesdfd<-samples[dfd, on=c(sampleDbId="SubjectID")]
     samplesdfd[!is.na(germplasmDbId), Found:=TRUE]
+    samplesdfd[, callSetDbId:=sampleDbId]
     output$update_samp_res = renderText({paste("<span style=\"color:green\">",nrow(samplesdfd[!is.na(germplasmDbId)]),"samples found out of ",nrow(samplesdfd)," samples. Use the 'Found' column to identify missing samples</span>")})
     values$samplesdfd <- samplesdfd
   })
@@ -963,6 +964,7 @@ server <- function(input, output, session) {
                                            },error=function(e) e)
                                     )
             )
+            #browser()
             setDT(brapi_calls)
             #brapi_calls[nchar(genotype.values)==1 & genotype.values%in%c("A","C","G","T","N","-"), genotype.values:=paste0(genotype.values,"/",genotype.values)]
             if (any(colnames(brapi_calls)=="genotypeMetadata.fieldAbbreviation")){
@@ -1216,6 +1218,7 @@ server <- function(input, output, session) {
       if (input$SNP!=""){
         ptitle<-paste(ifelse(input$SNP%in%c("","Any SNP"),"",input$SNP))#,ifelse(input$Plate%in%c("","Any SNP"),"",paste("-",paste(input$Plate,collapse = ","))))
         s <- input$samples_rows_selected
+        #browser()
         if (input$tetar == TRUE){
           isolate({
             if (any(!c("R","Theta")%in%colnames(values$toplot))){
@@ -1297,7 +1300,8 @@ server <- function(input, output, session) {
               #}
             }
             if (length(s)){
-              p <- p + geom_point(data=values$toplot[values$toplot$SubjectID%in%values$samplesdfd[s,]$sampleDbId,], aes(x=X.Fluor, y=Y.Fluor), shape = 21, colour = "#000000ff", size=3)
+              #browser()
+              p <- p + geom_point(data=values$toplot[values$toplot$SubjectID%in%values$samplesdfd[s,]$callSetDbId,], aes(x=X.Fluor, y=Y.Fluor), shape = 21, colour = "#000000ff", size=3)
             }
             ggplotly(p+ggtitle(ptitle)) %>% layout(dragmode = "lasso")
           })
